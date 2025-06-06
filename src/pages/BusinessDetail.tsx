@@ -1,79 +1,64 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { QueueBookingModal } from "@/components/QueueBookingModal";
-import { businessAPI } from "@/lib/api";
-import { Business, QueueBooking } from "@/lib/types";
-import { BUSINESS_CATEGORIES } from "@/lib/constants";
+import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   Star,
   MapPin,
   Clock,
   Users,
   Phone,
   Globe,
-  Calendar,
-  ArrowLeft,
   CheckCircle,
   XCircle,
+  Calendar,
+  Award,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { mockBusinesses, BUSINESS_CATEGORIES } from "../data/mockData";
+import { Business } from "../types";
+import { BookingModal } from "../components/BookingModal";
 
-export default function BusinessDetail() {
+const BusinessDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [business, setBusiness] = useState<Business | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
 
   useEffect(() => {
-    const loadBusiness = async () => {
-      if (!id) return;
-
-      setIsLoading(true);
-      try {
-        const businessData = await businessAPI.getById(id);
-        setBusiness(businessData);
-      } catch (error) {
-        console.error("Failed to load business:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadBusiness();
+    if (id) {
+      const foundBusiness = mockBusinesses.find((b) => b.id === id);
+      setBusiness(foundBusiness || null);
+    }
   }, [id]);
 
-  const handleBookingSuccess = (booking: QueueBooking) => {
-    // Could show success toast or redirect
-    console.log("Booking successful:", booking);
+  const handleBookingClick = (departmentId?: string) => {
+    if (departmentId) {
+      setSelectedDepartmentId(departmentId);
+    }
+    setIsBookingModalOpen(true);
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
   if (!business) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Card className="p-12 text-center max-w-md">
-          <div className="space-y-4">
-            <div className="text-6xl">😔</div>
-            <h2 className="text-xl font-semibold">Business Not Found</h2>
-            <p className="text-muted-foreground">
-              The business you're looking for doesn't exist or has been removed.
-            </p>
-            <Button asChild>
-              <Link to="/home">Back to Home</Link>
-            </Button>
-          </div>
-        </Card>
+        <div className="text-center">
+          <div className="text-6xl mb-4">🏢</div>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+            Business Not Found
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            The business you're looking for doesn't exist or has been removed.
+          </p>
+          <Link to="/home">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Back to Home
+            </motion.button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -81,233 +66,294 @@ export default function BusinessDetail() {
   const category = BUSINESS_CATEGORIES.find(
     (c) => c.value === business.category,
   );
-  const totalQueueSize = business.departments.reduce(
+  const totalQueue = business.departments.reduce(
     (sum, dept) => sum + dept.currentQueueSize,
     0,
   );
-  const averageWaitTime =
-    business.departments.length > 0
-      ? Math.round(
-          business.departments.reduce(
-            (sum, dept) => sum + dept.estimatedWaitTime,
-            0,
-          ) / business.departments.length,
-        )
-      : 0;
+  const avgWait = Math.round(
+    business.departments.reduce(
+      (sum, dept) => sum + dept.estimatedWaitTime,
+      0,
+    ) / business.departments.length,
+  );
+
+  const reviews = [
+    {
+      name: "Sarah M.",
+      rating: 5,
+      comment: "Great service! The queue system saved me so much time.",
+      date: "2 days ago",
+    },
+    {
+      name: "John D.",
+      rating: 4,
+      comment: "Very organized and professional staff.",
+      date: "1 week ago",
+    },
+    {
+      name: "Emily R.",
+      rating: 5,
+      comment: "Love being able to book ahead. Highly recommend!",
+      date: "2 weeks ago",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Button */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
-          className="mb-6"
-        >
-          <Button variant="ghost" asChild>
-            <Link to="/home">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Search
-            </Link>
-          </Button>
-        </motion.div>
+      {/* Back Button */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <Link to="/home">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Search</span>
+          </motion.button>
+        </Link>
+      </div>
 
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8">
             {/* Business Header */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 overflow-hidden"
             >
-              <Card className="overflow-hidden bg-card/50 backdrop-blur-sm">
-                <div className="h-48 bg-gradient-to-r from-blue-500 to-purple-600 relative">
-                  <div className="absolute inset-0 bg-black/20"></div>
-                  <div className="absolute bottom-4 left-6 text-white">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <span className="text-3xl">{category?.icon}</span>
-                      <Badge
-                        variant="secondary"
-                        className="bg-white/20 text-white border-white/30"
-                      >
-                        {category?.label}
-                      </Badge>
+              <div className="h-64 bg-gradient-to-r from-blue-500 to-purple-600 relative">
+                {business.coverPhoto && (
+                  <img
+                    src={business.coverPhoto}
+                    alt={business.name}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/80 to-purple-600/80" />
+                <div className="absolute top-4 left-4">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
+                    {category?.icon} {category?.label}
+                  </span>
+                </div>
+                <div className="absolute top-4 right-4">
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                      business.isAcceptingBookings
+                        ? "bg-green-500/20 text-green-100 border border-green-400/30"
+                        : "bg-red-500/20 text-red-100 border border-red-400/30"
+                    }`}
+                  >
+                    {business.isAcceptingBookings ? (
+                      <>
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Accepting Bookings
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Closed for Bookings
+                      </>
+                    )}
+                  </span>
+                </div>
+                <div className="absolute bottom-6 left-6 right-6">
+                  <h1 className="text-3xl font-bold text-white mb-2">
+                    {business.name}
+                  </h1>
+                  <div className="flex items-center space-x-4 text-white/90">
+                    <div className="flex items-center space-x-1">
+                      <MapPin className="w-4 h-4" />
+                      <span>{business.address}</span>
                     </div>
-                    <h1 className="text-3xl font-bold">{business.name}</h1>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-1">
+                      <Star className="w-5 h-5 text-yellow-400 fill-current" />
+                      <span className="text-xl font-semibold">
+                        {business.rating}
+                      </span>
+                      <span className="text-gray-500">
+                        ({business.totalReviews} reviews)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-6 text-sm">
+                    <div className="text-center">
+                      <div className="flex items-center space-x-1 text-blue-600 dark:text-blue-400 mb-1">
+                        <Users className="w-4 h-4" />
+                        <span className="font-semibold">{totalQueue}</span>
+                      </div>
+                      <div className="text-gray-500">in queue</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex items-center space-x-1 text-green-600 dark:text-green-400 mb-1">
+                        <Clock className="w-4 h-4" />
+                        <span className="font-semibold">{avgWait}m</span>
+                      </div>
+                      <div className="text-gray-500">avg wait</div>
+                    </div>
                   </div>
                 </div>
 
-                <CardContent className="p-6">
-                  <div className="space-y-4">
-                    {/* Rating and Location */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-1">
-                          <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                          <span className="font-semibold text-lg">
-                            {business.rating.toFixed(1)}
-                          </span>
-                          <span className="text-muted-foreground">
-                            ({business.totalReviews} reviews)
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-1 text-muted-foreground">
-                          <MapPin className="w-4 h-4" />
-                          <span className="text-sm">{business.address}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center space-x-4 text-sm">
-                        <div className="flex items-center space-x-1">
-                          <Users className="w-4 h-4 text-blue-500" />
-                          <span>{totalQueueSize} in queue</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4 text-green-500" />
-                          <span>~{averageWaitTime} min wait</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    {business.description && (
-                      <div>
-                        <p className="text-muted-foreground">
-                          {business.description}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Status */}
-                    <div className="flex items-center justify-between">
-                      <div
-                        className={`flex items-center space-x-2 ${
-                          business.isAcceptingBookings
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {business.isAcceptingBookings ? (
-                          <CheckCircle className="w-5 h-5" />
-                        ) : (
-                          <XCircle className="w-5 h-5" />
-                        )}
-                        <span className="font-medium">
-                          {business.isAcceptingBookings
-                            ? "Accepting Bookings"
-                            : "Closed for Bookings"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                {business.description && (
+                  <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+                    {business.description}
+                  </p>
+                )}
+              </div>
             </motion.div>
 
             {/* Departments/Services */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+              transition={{ delay: 0.2, duration: 0.6 }}
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
             >
-              <Card className="bg-card/50 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Calendar className="w-5 h-5 mr-2" />
-                    Available Services
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {business.departments.map((department, index) => (
-                      <motion.div
-                        key={department.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.1 }}
-                        className={`p-4 border rounded-lg transition-colors ${
-                          department.isActive &&
-                          department.currentQueueSize < department.maxQueueSize
-                            ? "hover:bg-accent cursor-pointer border-border"
-                            : "opacity-50 border-muted"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-lg">
-                              {department.name}
-                            </h3>
-                            <div className="flex items-center space-x-4 mt-2">
-                              <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                  {department.estimatedWaitTime} min wait
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                                <Users className="w-3 h-3" />
-                                <span>
-                                  {department.currentQueueSize}/
-                                  {department.maxQueueSize} spots
-                                </span>
-                              </div>
-                            </div>
-                          </div>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
+                <Calendar className="w-6 h-6 mr-3 text-blue-600" />
+                Available Services
+              </h2>
 
-                          <div className="text-right">
-                            {department.isActive ? (
-                              department.currentQueueSize <
-                              department.maxQueueSize ? (
-                                <Badge
-                                  variant="default"
-                                  className="bg-green-100 text-green-800 border-green-200"
-                                >
-                                  Available
-                                </Badge>
-                              ) : (
-                                <Badge variant="destructive">Full</Badge>
-                              )
-                            ) : (
-                              <Badge variant="secondary">Closed</Badge>
-                            )}
+              <div className="grid gap-4">
+                {business.departments.map((department, index) => (
+                  <motion.div
+                    key={department.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 + index * 0.1, duration: 0.5 }}
+                    className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                      department.isActive &&
+                      department.currentQueueSize < department.maxQueueSize
+                        ? "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer"
+                        : "border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-700/20 opacity-60"
+                    }`}
+                    onClick={() => {
+                      if (
+                        department.isActive &&
+                        department.currentQueueSize < department.maxQueueSize
+                      ) {
+                        handleBookingClick(department.id);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                          {department.name}
+                        </h3>
+                        {department.description && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                            {department.description}
+                          </p>
+                        )}
+                        <div className="flex items-center space-x-4 text-sm">
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-3 h-3 text-gray-400" />
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {department.estimatedWaitTime} min wait
+                            </span>
                           </div>
+                          <div className="flex items-center space-x-1">
+                            <Users className="w-3 h-3 text-gray-400" />
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {department.currentQueueSize}/
+                              {department.maxQueueSize} spots
+                            </span>
+                          </div>
+                          {department.price && (
+                            <div className="text-green-600 dark:text-green-400 font-semibold">
+                              ${department.price}
+                            </div>
+                          )}
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                      </div>
+
+                      <div className="text-right">
+                        {!department.isActive ? (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                            Closed
+                          </span>
+                        ) : department.currentQueueSize >=
+                          department.maxQueueSize ? (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+                            Full
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                            Available
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
             </motion.div>
 
-            {/* Contact Info */}
+            {/* Reviews */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
             >
-              <Card className="bg-card/50 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle>Contact Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-3">
-                      <MapPin className="w-4 h-4 text-muted-foreground" />
-                      <span>{business.address}</span>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
+                <Award className="w-6 h-6 mr-3 text-yellow-500" />
+                Recent Reviews
+              </h2>
+
+              <div className="space-y-4">
+                {reviews.map((review, index) => (
+                  <div
+                    key={index}
+                    className="border-b border-gray-200 dark:border-gray-600 last:border-b-0 pb-4 last:pb-0"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs font-semibold">
+                            {review.name.charAt(0)}
+                          </span>
+                        </div>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {review.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-3 h-3 ${
+                                i < review.rating
+                                  ? "text-yellow-400 fill-current"
+                                  : "text-gray-300"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {review.date}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <Phone className="w-4 h-4 text-muted-foreground" />
-                      <span>+1 (555) 123-4567</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <Globe className="w-4 h-4 text-muted-foreground" />
-                      <span>www.business-website.com</span>
-                    </div>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">
+                      {review.comment}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
+                ))}
+              </div>
             </motion.div>
           </div>
 
@@ -317,140 +363,146 @@ export default function BusinessDetail() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
+              transition={{ delay: 0.3, duration: 0.6 }}
+              className="sticky top-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
             >
-              <Card className="sticky top-24 bg-card/50 backdrop-blur-sm">
-                <CardHeader className="text-center">
-                  <CardTitle className="text-xl">Book Your Spot</CardTitle>
-                  <p className="text-muted-foreground">
-                    Skip the wait and reserve your place in line
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center space-y-2">
-                    <div className="text-3xl font-bold text-primary">
-                      ~{averageWaitTime} min
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Average wait time
-                    </p>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 text-center">
+                Book Your Spot
+              </h3>
+
+              <div className="text-center mb-6">
+                <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
+                  ~{avgWait} min
+                </div>
+                <p className="text-sm text-gray-500">Average wait time</p>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">
+                    People in queue:
+                  </span>
+                  <span className="font-semibold">{totalQueue}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Available services:
+                  </span>
+                  <span className="font-semibold">
+                    {
+                      business.departments.filter(
+                        (d) =>
+                          d.isActive && d.currentQueueSize < d.maxQueueSize,
+                      ).length
+                    }
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Rating:
+                  </span>
+                  <div className="flex items-center space-x-1">
+                    <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                    <span className="font-semibold">{business.rating}</span>
                   </div>
+                </div>
+              </div>
 
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>People in queue:</span>
-                      <span className="font-medium">{totalQueueSize}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Available services:</span>
-                      <span className="font-medium">
-                        {business.departments.filter((d) => d.isActive).length}
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={() => setIsBookingModalOpen(true)}
-                    disabled={
-                      !business.isAcceptingBookings ||
-                      business.departments.every(
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleBookingClick()}
+                disabled={
+                  !business.isAcceptingBookings ||
+                  business.departments.every(
+                    (d) => !d.isActive || d.currentQueueSize >= d.maxQueueSize,
+                  )
+                }
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-lg font-semibold hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {!business.isAcceptingBookings
+                  ? "Closed for Bookings"
+                  : business.departments.every(
                         (d) =>
                           !d.isActive || d.currentQueueSize >= d.maxQueueSize,
                       )
-                    }
-                  >
-                    {!business.isAcceptingBookings
-                      ? "Closed for Bookings"
-                      : business.departments.every(
-                            (d) =>
-                              !d.isActive ||
-                              d.currentQueueSize >= d.maxQueueSize,
-                          )
-                        ? "All Services Full"
-                        : "Book My Spot"}
-                  </Button>
+                    ? "All Services Full"
+                    : "Book My Spot"}
+              </motion.button>
 
-                  <p className="text-xs text-muted-foreground text-center">
-                    No booking fees • Cancel anytime
-                  </p>
-                </CardContent>
-              </Card>
+              <p className="text-xs text-gray-500 text-center mt-3">
+                No booking fees • Cancel anytime
+              </p>
             </motion.div>
 
-            {/* Recent Reviews */}
+            {/* Contact Information */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
             >
-              <Card className="bg-card/50 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg">Recent Reviews</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {[
-                      {
-                        name: "Sarah M.",
-                        rating: 5,
-                        comment:
-                          "Great service! The queue system saved me so much time.",
-                      },
-                      {
-                        name: "John D.",
-                        rating: 4,
-                        comment: "Very organized and professional staff.",
-                      },
-                      {
-                        name: "Emily R.",
-                        rating: 5,
-                        comment:
-                          "Love being able to book ahead. Highly recommend!",
-                      },
-                    ].map((review, index) => (
-                      <div key={index} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">
-                            {review.name}
-                          </span>
-                          <div className="flex items-center">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`w-3 h-3 ${
-                                  i < review.rating
-                                    ? "fill-yellow-400 text-yellow-400"
-                                    : "text-gray-300"
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {review.comment}
-                        </p>
-                        {index < 2 && <Separator className="my-3" />}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Contact Information
+              </h3>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center space-x-3">
+                  <MapPin className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600 dark:text-gray-300">
+                    {business.address}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <Phone className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600 dark:text-gray-300">
+                    +1 (555) 123-4567
+                  </span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <Globe className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600 dark:text-gray-300">
+                    www.business-website.com
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                  Opening Hours
+                </h4>
+                <div className="space-y-1 text-xs">
+                  {Object.entries(business.openingHours).map(([day, hours]) => (
+                    <div key={day} className="flex justify-between">
+                      <span className="capitalize text-gray-600 dark:text-gray-400">
+                        {day}:
+                      </span>
+                      <span className="text-gray-900 dark:text-white">
+                        {hours.closed
+                          ? "Closed"
+                          : `${hours.start} - ${hours.end}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </motion.div>
           </div>
         </div>
       </div>
 
       {/* Booking Modal */}
-      <QueueBookingModal
+      <BookingModal
         business={business}
         isOpen={isBookingModalOpen}
-        onClose={() => setIsBookingModalOpen(false)}
-        onSuccess={handleBookingSuccess}
+        onClose={() => {
+          setIsBookingModalOpen(false);
+          setSelectedDepartmentId("");
+        }}
+        preSelectedDepartmentId={selectedDepartmentId}
       />
     </div>
   );
-}
+};
+
+export default BusinessDetail;
