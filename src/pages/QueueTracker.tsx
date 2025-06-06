@@ -1,419 +1,372 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { queueAPI, businessAPI } from "@/lib/api";
-import { QueueStatus, Business, QueueBooking } from "@/lib/types";
+import React, { useState, useEffect } from "react";
+import { useParams, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   Clock,
   Users,
-  MapPin,
   Phone,
-  CheckCircle,
-  XCircle,
+  MapPin,
   RefreshCw,
+  XCircle,
+  CheckCircle,
   AlertTriangle,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { mockBookings, mockBusinesses } from "../data/mockData";
+import { QueueBooking, Business } from "../types";
+import { toast } from "sonner";
 
-export default function QueueTracker() {
+const QueueTracker: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
-  const [business, setBusiness] = useState<Business | null>(null);
   const [booking, setBooking] = useState<QueueBooking | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [queuePosition, setQueuePosition] = useState(1);
+  const [estimatedWait, setEstimatedWait] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
 
   useEffect(() => {
-    const loadQueueData = async () => {
-      if (!id) return;
-
-      setIsLoading(true);
-      try {
-        // In a real app, you'd get the booking first then the queue status
-        const status = await queueAPI.getQueueStatus(id);
-        setQueueStatus(status);
-        setLastUpdated(new Date());
-
-        // Mock booking data - in real app this would come from the API
-        const mockBooking: QueueBooking = {
-          id: id,
-          userId: "user1",
-          businessId: "1",
-          departmentId: "d1",
-          tokenNumber: status.tokenNumber,
-          status: "waiting",
-          estimatedWaitTime: status.estimatedWaitTime,
-          bookedAt: new Date().toISOString(),
-          userName: "John Doe",
-          userPhone: "555-0123",
-        };
-        setBooking(mockBooking);
-
-        // Load business data
-        const businessData = await businessAPI.getById(mockBooking.businessId);
-        setBusiness(businessData);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load queue status",
+    if (id) {
+      const foundBooking = mockBookings.find((b) => b.id === id);
+      if (foundBooking) {
+        setBooking(foundBooking);
+        const foundBusiness = mockBusinesses.find(
+          (b) => b.id === foundBooking.businessId,
         );
-      } finally {
-        setIsLoading(false);
+        setBusiness(foundBusiness || null);
+
+        // Simulate queue movement
+        const position = Math.max(
+          1,
+          foundBooking.tokenNumber - Math.floor(Math.random() * 3),
+        );
+        setQueuePosition(position);
+        setEstimatedWait(position * 15); // 15 min per person
       }
-    };
-
-    loadQueueData();
-
-    // Set up auto-refresh every 30 seconds
-    const interval = setInterval(loadQueueData, 30000);
-    return () => clearInterval(interval);
+    }
   }, [id]);
 
-  const handleCancelBooking = async () => {
-    if (!booking) return;
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (booking && queuePosition > 1) {
+        // Simulate queue movement
+        const newPosition = Math.max(
+          1,
+          queuePosition - Math.floor(Math.random() * 2),
+        );
+        setQueuePosition(newPosition);
+        setEstimatedWait(newPosition * 15);
+        setLastUpdated(new Date());
 
-    try {
-      await queueAPI.cancelBooking(booking.id);
-      navigate("/home");
-    } catch (error) {
-      console.error("Failed to cancel booking:", error);
-    }
-  };
+        if (newPosition === 1) {
+          toast.success("🎉 It's your turn! Please proceed to the counter.");
+        } else if (newPosition <= 3) {
+          toast.info("⏰ You're next in line! Please stay nearby.");
+        }
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [booking, queuePosition]);
 
   const handleRefresh = () => {
     setIsLoading(true);
-    window.location.reload();
+    setTimeout(() => {
+      const newPosition = Math.max(
+        1,
+        queuePosition - Math.floor(Math.random() * 2),
+      );
+      setQueuePosition(newPosition);
+      setEstimatedWait(newPosition * 15);
+      setLastUpdated(new Date());
+      setIsLoading(false);
+    }, 1000);
+  };
+
+  const handleCancelBooking = () => {
+    if (confirm("Are you sure you want to cancel this booking?")) {
+      toast.success("Booking cancelled successfully");
+      // In a real app, this would make an API call
+      window.location.href = "/home";
+    }
   };
 
   const getProgressPercentage = () => {
-    if (!queueStatus) return 0;
-    if (queueStatus.peopleAhead === 0) return 100;
-    return Math.max(
-      0,
-      100 -
-        (queueStatus.currentPosition /
-          (queueStatus.peopleAhead + queueStatus.currentPosition)) *
-          100,
-    );
+    if (!booking) return 0;
+    const totalAhead = booking.tokenNumber - 1;
+    const completed = totalAhead - (queuePosition - 1);
+    return Math.min(100, (completed / totalAhead) * 100);
   };
 
   const getStatusColor = () => {
-    if (!queueStatus) return "gray";
-    if (queueStatus.currentPosition <= 1) return "green";
-    if (queueStatus.currentPosition <= 3) return "yellow";
-    return "blue";
+    if (queuePosition === 1) return "text-green-600";
+    if (queuePosition <= 3) return "text-yellow-600";
+    return "text-blue-600";
   };
 
   const getStatusMessage = () => {
-    if (!queueStatus) return "";
-    if (queueStatus.currentPosition <= 1)
-      return "It's almost your turn! Please be ready.";
-    if (queueStatus.currentPosition <= 3)
-      return "You're next in line! Please stay nearby.";
-    return `You have ${queueStatus.peopleAhead} people ahead of you.`;
+    if (queuePosition === 1)
+      return "🎉 It's your turn! Please proceed to the counter.";
+    if (queuePosition <= 3)
+      return "⏰ You're next in line! Please stay nearby.";
+    return `⏳ You have ${queuePosition - 1} people ahead of you.`;
   };
 
-  if (isLoading && !queueStatus) {
+  if (!booking || !business) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading queue status...</p>
+        <div className="text-center">
+          <div className="text-6xl mb-4">📋</div>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+            Booking Not Found
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            The booking you're looking for doesn't exist or has been cancelled.
+          </p>
+          <Link to="/home">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Back to Home
+            </motion.button>
+          </Link>
         </div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <Card className="max-w-md p-8 text-center">
-          <div className="space-y-4">
-            <AlertTriangle className="w-16 h-16 text-red-500 mx-auto" />
-            <h2 className="text-xl font-semibold">Error Loading Queue</h2>
-            <p className="text-muted-foreground">{error}</p>
-            <Button onClick={handleRefresh}>Try Again</Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!queueStatus || !booking || !business) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <Card className="max-w-md p-8 text-center">
-          <div className="space-y-4">
-            <XCircle className="w-16 h-16 text-red-500 mx-auto" />
-            <h2 className="text-xl font-semibold">Booking Not Found</h2>
-            <p className="text-muted-foreground">
-              The booking you're looking for doesn't exist or has been
-              cancelled.
-            </p>
-            <Button onClick={() => navigate("/home")}>Back to Home</Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
+  const department = business.departments.find(
+    (d) => d.id === booking.departmentId,
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="max-w-2xl mx-auto space-y-6">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center space-y-2"
+      {/* Header */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <Link to="/home">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-6"
           >
-            <h1 className="text-3xl font-bold text-foreground">
-              Queue Tracker
-            </h1>
-            <p className="text-muted-foreground">
-              Real-time updates for your booking
-            </p>
-          </motion.div>
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Home</span>
+          </motion.button>
+        </Link>
 
-          {/* Status Alert */}
-          {queueStatus.currentPosition <= 1 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800 dark:text-green-200">
-                  🎉 It's your turn! Please proceed to the service counter.
-                </AlertDescription>
-              </Alert>
-            </motion.div>
-          )}
-
-          {/* Current Status Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <Card className="overflow-hidden bg-card/50 backdrop-blur-sm">
-              <CardHeader className="text-center bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-                <div className="space-y-2">
-                  <div className="text-6xl font-bold">
-                    #{queueStatus.tokenNumber}
-                  </div>
-                  <CardTitle className="text-xl">Your Token Number</CardTitle>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-6 space-y-6">
-                {/* Progress Bar */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Queue Progress</span>
-                    <span className="font-medium">
-                      {Math.round(getProgressPercentage())}%
-                    </span>
-                  </div>
-                  <Progress value={getProgressPercentage()} className="h-3" />
-                </div>
-
-                {/* Current Position */}
-                <div className="text-center space-y-2">
-                  <div
-                    className={`text-4xl font-bold ${
-                      getStatusColor() === "green"
-                        ? "text-green-600"
-                        : getStatusColor() === "yellow"
-                          ? "text-yellow-600"
-                          : "text-blue-600"
-                    }`}
-                  >
-                    Position #{queueStatus.currentPosition}
-                  </div>
-                  <p className="text-muted-foreground">{getStatusMessage()}</p>
-                </div>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <Users className="w-6 h-6 mx-auto mb-2 text-blue-500" />
-                    <div className="text-2xl font-bold">
-                      {queueStatus.peopleAhead}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Ahead of you
-                    </div>
-                  </div>
-
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <Clock className="w-6 h-6 mx-auto mb-2 text-green-500" />
-                    <div className="text-2xl font-bold">
-                      {queueStatus.estimatedWaitTime}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Minutes left
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Business Info */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            <Card className="bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <MapPin className="w-5 h-5 mr-2" />
-                  Business Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <h3 className="font-semibold text-lg">{business.name}</h3>
-                  <p className="text-muted-foreground">{business.address}</p>
-                </div>
-
-                <div className="flex items-center space-x-3 text-sm">
-                  <Phone className="w-4 h-4 text-muted-foreground" />
-                  <span>+1 (555) 123-4567</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Department:
-                  </span>
-                  <Badge variant="outline">
-                    {
-                      business.departments.find(
-                        (d) => d.id === booking.departmentId,
-                      )?.name
-                    }
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Booking Details */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
-          >
-            <Card className="bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle>Booking Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Booked for:</span>
-                    <div className="font-medium">{booking.userName}</div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Phone:</span>
-                    <div className="font-medium">{booking.userPhone}</div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Booked at:</span>
-                    <div className="font-medium">
-                      {new Date(booking.bookedAt).toLocaleTimeString()}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Status:</span>
-                    <Badge variant="outline" className="ml-2">
-                      {booking.status}
-                    </Badge>
-                  </div>
-                </div>
-
-                {booking.notes && (
-                  <div>
-                    <span className="text-muted-foreground text-sm">
-                      Notes:
-                    </span>
-                    <p className="text-sm mt-1">{booking.notes}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.8 }}
-            className="flex space-x-3"
-          >
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={isLoading}
-              className="flex-1"
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </Button>
-
-            <Button
-              variant="destructive"
-              onClick={handleCancelBooking}
-              className="flex-1"
-            >
-              <XCircle className="w-4 h-4 mr-2" />
-              Cancel Booking
-            </Button>
-          </motion.div>
-
-          {/* Last Updated */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 1 }}
-            className="text-center text-xs text-muted-foreground"
-          >
-            Last updated: {lastUpdated.toLocaleTimeString()}
-          </motion.div>
-
-          {/* Tips */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 1.2 }}
-          >
-            <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-              <CardContent className="p-4">
-                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
-                  💡 Tips
-                </h4>
-                <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                  <li>• Stay nearby when you're in the top 3 positions</li>
-                  <li>• Enable notifications to get alerts</li>
-                  <li>• You can cancel your booking anytime if plans change</li>
-                  <li>• This page refreshes automatically every 30 seconds</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </motion.div>
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Queue Tracker
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Real-time updates for your booking
+          </p>
         </div>
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
+        {/* Status Alert */}
+        {queuePosition === 1 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4"
+          >
+            <div className="flex items-center space-x-3">
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <div>
+                <h3 className="font-semibold text-green-800 dark:text-green-200">
+                  It's Your Turn!
+                </h3>
+                <p className="text-green-700 dark:text-green-300 text-sm">
+                  Please proceed to the service counter immediately.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Main Status Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 overflow-hidden"
+        >
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white text-center">
+            <div className="text-6xl font-bold mb-2">
+              #{booking.tokenNumber}
+            </div>
+            <h2 className="text-xl font-semibold">Your Token Number</h2>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {/* Progress Bar */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span>Queue Progress</span>
+                <span className="font-semibold">
+                  {Math.round(getProgressPercentage())}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${getProgressPercentage()}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full"
+                />
+              </div>
+            </div>
+
+            {/* Current Status */}
+            <div className="text-center space-y-3">
+              <div className={`text-5xl font-bold ${getStatusColor()}`}>
+                Position #{queuePosition}
+              </div>
+              <p className="text-gray-600 dark:text-gray-400">
+                {getStatusMessage()}
+              </p>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                <Users className="w-8 h-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {queuePosition - 1}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  People ahead
+                </div>
+              </div>
+
+              <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-xl">
+                <Clock className="w-8 h-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {estimatedWait}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Minutes left
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Business Information */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.6 }}
+          className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
+        >
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+            <MapPin className="w-5 h-5 mr-2 text-blue-600" />
+            Business Information
+          </h3>
+
+          <div className="space-y-3">
+            <div>
+              <h4 className="font-semibold text-gray-900 dark:text-white">
+                {business.name}
+              </h4>
+              <p className="text-gray-600 dark:text-gray-400">
+                {business.address}
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-3 text-sm">
+              <Phone className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-600 dark:text-gray-400">
+                +1 (555) 123-4567
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500">Service:</span>
+                <div className="font-semibold">{department?.name}</div>
+              </div>
+              <div>
+                <span className="text-gray-500">Booked at:</span>
+                <div className="font-semibold">
+                  {new Date(booking.bookedAt).toLocaleTimeString()}
+                </div>
+              </div>
+            </div>
+
+            {booking.notes && (
+              <div>
+                <span className="text-gray-500 text-sm">Notes:</span>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                  {booking.notes}
+                </p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Action Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.6 }}
+          className="grid grid-cols-2 gap-4"
+        >
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="flex items-center justify-center space-x-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
+            />
+            <span>Refresh</span>
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleCancelBooking}
+            className="flex items-center justify-center space-x-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            <XCircle className="w-4 h-4" />
+            <span>Cancel Booking</span>
+          </motion.button>
+        </motion.div>
+
+        {/* Last Updated */}
+        <div className="text-center text-xs text-gray-500">
+          Last updated: {lastUpdated.toLocaleTimeString()}
+        </div>
+
+        {/* Tips */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.6 }}
+          className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4"
+        >
+          <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
+            <AlertTriangle className="w-4 h-4 mr-2" />
+            💡 Tips
+          </h4>
+          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            <li>• Stay nearby when you're in the top 3 positions</li>
+            <li>• This page refreshes automatically every 30 seconds</li>
+            <li>• You'll get notifications when it's almost your turn</li>
+            <li>• You can cancel your booking anytime if plans change</li>
+          </ul>
+        </motion.div>
       </div>
     </div>
   );
-}
+};
+
+export default QueueTracker;
