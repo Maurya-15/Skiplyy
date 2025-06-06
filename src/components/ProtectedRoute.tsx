@@ -1,6 +1,8 @@
+import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { User } from "@/lib/types";
+import { useAuth } from "../contexts/AuthContext";
+import { User } from "../types";
+import { motion } from "framer-motion";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,21 +10,67 @@ interface ProtectedRouteProps {
   requireAuth?: boolean;
 }
 
-export function ProtectedRoute({
+const LoadingSpinner: React.FC = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex flex-col items-center space-y-4"
+    >
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full"
+      />
+      <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+    </motion.div>
+  </div>
+);
+
+const AccessDenied: React.FC = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="text-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl backdrop-blur-sm border border-red-200 dark:border-red-800"
+    >
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.2, type: "spring" }}
+        className="text-6xl mb-4"
+      >
+        🚫
+      </motion.div>
+      <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">
+        Access Denied
+      </h1>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">
+        You don't have permission to access this page.
+      </p>
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => window.history.back()}
+        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+      >
+        Go Back
+      </motion.button>
+    </motion.div>
+  </div>
+);
+
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   allowedRoles = [],
   requireAuth = true,
-}: ProtectedRouteProps) {
+}) => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
-  // Show loading while checking auth
+  // Show loading spinner while checking authentication
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   // If authentication is required but user is not authenticated
@@ -37,17 +85,8 @@ export function ProtectedRoute({
     user &&
     !allowedRoles.includes(user.role)
   ) {
-    // Redirect to appropriate dashboard based on user role
-    const redirectPath =
-      user.role === "user"
-        ? "/home"
-        : user.role === "business"
-          ? "/dashboard"
-          : user.role === "admin"
-            ? "/admin"
-            : "/";
-    return <Navigate to={redirectPath} replace />;
+    return <AccessDenied />;
   }
 
   return <>{children}</>;
-}
+};
