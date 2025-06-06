@@ -1,508 +1,899 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
+import { Separator } from "../components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
+import { Progress } from "../components/ui/progress";
 import {
   ArrowLeft,
-  Star,
   MapPin,
   Clock,
+  Star,
   Users,
   Phone,
   Globe,
-  CheckCircle,
-  XCircle,
+  MessageSquare,
   Calendar,
+  Bookmark,
+  BookmarkCheck,
+  Share2,
+  Navigation,
+  CheckCircle,
+  AlertCircle,
+  XCircle,
+  Camera,
+  Zap,
+  Heart,
+  ExternalLink,
+  MessageCircle,
+  TrendingUp,
   Award,
+  Shield,
+  Wifi,
+  CreditCard,
+  Clock3,
 } from "lucide-react";
-import { mockBusinesses, BUSINESS_CATEGORIES } from "../data/mockData";
-import { Business } from "../types";
+import {
+  getBusinessById,
+  getReviewsByBusinessId,
+  mockTimeSlots,
+} from "../data/mockData";
+import { useAuth } from "../contexts/AuthContext";
+import { StarRating } from "../components/Reviews/StarRating";
+import { ReviewCard } from "../components/Reviews/ReviewCard";
+import { PhotoGallery } from "../components/PhotoGallery/PhotoGallery";
+import { BookingCalendar } from "../components/Calendar/BookingCalendar";
 import { BookingModal } from "../components/BookingModal";
+import { AnalyticsChart } from "../components/Charts/AnalyticsChart";
+import { cn } from "../lib/utils";
+import { motion } from "framer-motion";
+import { Business, Department, TimeSlot } from "../types";
+import { toast } from "sonner";
 
-const BusinessDetail: React.FC = () => {
+export const BusinessDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
+  const [reviews, setReviews] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    new Date(),
+  );
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<
+    TimeSlot | undefined
+  >();
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     if (id) {
-      const foundBusiness = mockBusinesses.find((b) => b.id === id);
-      setBusiness(foundBusiness || null);
-    }
-  }, [id]);
+      const businessData = getBusinessById(id);
+      if (businessData) {
+        setBusiness(businessData);
+        setSelectedDepartment(businessData.departments[0]?.id || "");
 
-  const handleBookingClick = (departmentId?: string) => {
-    if (departmentId) {
-      setSelectedDepartmentId(departmentId);
+        // Check if bookmarked
+        if (user?.bookmarks?.includes(id)) {
+          setIsBookmarked(true);
+        }
+      }
+
+      const reviewData = getReviewsByBusinessId(id);
+      setReviews(reviewData);
     }
-    setIsBookingModalOpen(true);
-  };
+  }, [id, user]);
 
   if (!business) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">🏢</div>
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-            Business Not Found
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            The business you're looking for doesn't exist or has been removed.
-          </p>
-          <Link to="/home">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Back to Home
-            </motion.button>
-          </Link>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading business details...</p>
         </div>
       </div>
     );
   }
 
-  const category = BUSINESS_CATEGORIES.find(
-    (c) => c.value === business.category,
-  );
-  const totalQueue = business.departments.reduce(
-    (sum, dept) => sum + dept.currentQueueSize,
-    0,
-  );
-  const avgWait = Math.round(
-    business.departments.reduce(
-      (sum, dept) => sum + dept.estimatedWaitTime,
-      0,
-    ) / business.departments.length,
-  );
+  const isOpenNow = () => {
+    const now = new Date();
+    const dayOfWeek = now
+      .toLocaleDateString("en-US", { weekday: "long" })
+      .toLowerCase();
+    const currentTime = now.toTimeString().slice(0, 5);
 
-  const reviews = [
-    {
-      name: "Sarah M.",
-      rating: 5,
-      comment: "Great service! The queue system saved me so much time.",
-      date: "2 days ago",
-    },
-    {
-      name: "John D.",
-      rating: 4,
-      comment: "Very organized and professional staff.",
-      date: "1 week ago",
-    },
-    {
-      name: "Emily R.",
-      rating: 5,
-      comment: "Love being able to book ahead. Highly recommend!",
-      date: "2 weeks ago",
-    },
+    const todayHours = business.openingHours[dayOfWeek];
+    if (!todayHours || todayHours.closed) return false;
+
+    return currentTime >= todayHours.start && currentTime <= todayHours.end;
+  };
+
+  const getQueueStatus = () => {
+    const totalQueue = business.departments.reduce(
+      (total, dept) => total + dept.currentQueueSize,
+      0,
+    );
+    if (totalQueue === 0)
+      return {
+        status: "available",
+        color: "text-green-600",
+        bg: "bg-green-100",
+      };
+    if (totalQueue < 10)
+      return { status: "low", color: "text-yellow-600", bg: "bg-yellow-100" };
+    if (totalQueue < 20)
+      return {
+        status: "medium",
+        color: "text-orange-600",
+        bg: "bg-orange-100",
+      };
+    return { status: "high", color: "text-red-600", bg: "bg-red-100" };
+  };
+
+  const queueStatus = getQueueStatus();
+  const openStatus = isOpenNow();
+
+  const handleBookmark = () => {
+    setIsBookmarked(!isBookmarked);
+    toast.success(
+      isBookmarked ? "Removed from bookmarks" : "Added to bookmarks",
+    );
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: business.name,
+        text: business.description,
+        url: window.location.href,
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied to clipboard");
+    }
+  };
+
+  const handleBookNow = () => {
+    if (!user) {
+      toast.error("Please log in to book an appointment");
+      return;
+    }
+    setIsBookingModalOpen(true);
+  };
+
+  const handleCall = () => {
+    if (business.contact.phone) {
+      window.open(`tel:${business.contact.phone}`);
+    }
+  };
+
+  const handleWhatsApp = () => {
+    if (business.contact.whatsapp) {
+      window.open(
+        `https://wa.me/${business.contact.whatsapp.replace(/[^\d]/g, "")}`,
+      );
+    }
+  };
+
+  const getDepartmentStatus = (dept: Department) => {
+    const percentage = (dept.currentQueueSize / dept.maxQueueSize) * 100;
+    if (percentage >= 90)
+      return { color: "text-red-600", bg: "bg-red-100", status: "Full" };
+    if (percentage >= 70)
+      return { color: "text-orange-600", bg: "bg-orange-100", status: "Busy" };
+    if (percentage >= 30)
+      return {
+        color: "text-yellow-600",
+        bg: "bg-yellow-100",
+        status: "Moderate",
+      };
+    return { color: "text-green-600", bg: "bg-green-100", status: "Available" };
+  };
+
+  // Mock chart data for business trends
+  const trendData = [
+    { name: "Mon", value: 45 },
+    { name: "Tue", value: 52 },
+    { name: "Wed", value: 48 },
+    { name: "Thu", value: 61 },
+    { name: "Fri", value: 55 },
+    { name: "Sat", value: 67 },
+    { name: "Sun", value: 43 },
+  ];
+
+  const ratingDistribution = [
+    { name: "5 Stars", value: 65 },
+    { name: "4 Stars", value: 20 },
+    { name: "3 Stars", value: 10 },
+    { name: "2 Stars", value: 3 },
+    { name: "1 Star", value: 2 },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      {/* Back Button */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Link to="/home">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Search</span>
-          </motion.button>
-        </Link>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Business Header */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 overflow-hidden"
-            >
-              <div className="h-64 bg-gradient-to-r from-blue-500 to-purple-600 relative">
-                {business.coverPhoto && (
-                  <img
-                    src={business.coverPhoto}
-                    alt={business.name}
-                    className="w-full h-full object-cover"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/80 to-purple-600/80" />
-                <div className="absolute top-4 left-4">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
-                    {category?.icon} {category?.label}
-                  </span>
-                </div>
-                <div className="absolute top-4 right-4">
-                  <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                      business.isAcceptingBookings
-                        ? "bg-green-500/20 text-green-100 border border-green-400/30"
-                        : "bg-red-500/20 text-red-100 border border-red-400/30"
-                    }`}
-                  >
-                    {business.isAcceptingBookings ? (
-                      <>
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Accepting Bookings
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="w-3 h-3 mr-1" />
-                        Closed for Bookings
-                      </>
-                    )}
-                  </span>
-                </div>
-                <div className="absolute bottom-6 left-6 right-6">
-                  <h1 className="text-3xl font-bold text-white mb-2">
-                    {business.name}
-                  </h1>
-                  <div className="flex items-center space-x-4 text-white/90">
-                    <div className="flex items-center space-x-1">
-                      <MapPin className="w-4 h-4" />
-                      <span>{business.address}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-1">
-                      <Star className="w-5 h-5 text-yellow-400 fill-current" />
-                      <span className="text-xl font-semibold">
-                        {business.rating}
-                      </span>
-                      <span className="text-gray-500">
-                        ({business.totalReviews} reviews)
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-6 text-sm">
-                    <div className="text-center">
-                      <div className="flex items-center space-x-1 text-blue-600 dark:text-blue-400 mb-1">
-                        <Users className="w-4 h-4" />
-                        <span className="font-semibold">{totalQueue}</span>
-                      </div>
-                      <div className="text-gray-500">in queue</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center space-x-1 text-green-600 dark:text-green-400 mb-1">
-                        <Clock className="w-4 h-4" />
-                        <span className="font-semibold">{avgWait}m</span>
-                      </div>
-                      <div className="text-gray-500">avg wait</div>
-                    </div>
-                  </div>
-                </div>
-
-                {business.description && (
-                  <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
-                    {business.description}
-                  </p>
-                )}
-              </div>
-            </motion.div>
-
-            {/* Departments/Services */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
-              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
-            >
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
-                <Calendar className="w-6 h-6 mr-3 text-blue-600" />
-                Available Services
-              </h2>
-
-              <div className="grid gap-4">
-                {business.departments.map((department, index) => (
-                  <motion.div
-                    key={department.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 + index * 0.1, duration: 0.5 }}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                      department.isActive &&
-                      department.currentQueueSize < department.maxQueueSize
-                        ? "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer"
-                        : "border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-700/20 opacity-60"
-                    }`}
-                    onClick={() => {
-                      if (
-                        department.isActive &&
-                        department.currentQueueSize < department.maxQueueSize
-                      ) {
-                        handleBookingClick(department.id);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                          {department.name}
-                        </h3>
-                        {department.description && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                            {department.description}
-                          </p>
-                        )}
-                        <div className="flex items-center space-x-4 text-sm">
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-3 h-3 text-gray-400" />
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {department.estimatedWaitTime} min wait
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Users className="w-3 h-3 text-gray-400" />
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {department.currentQueueSize}/
-                              {department.maxQueueSize} spots
-                            </span>
-                          </div>
-                          {department.price && (
-                            <div className="text-green-600 dark:text-green-400 font-semibold">
-                              ${department.price}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        {!department.isActive ? (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                            Closed
-                          </span>
-                        ) : department.currentQueueSize >=
-                          department.maxQueueSize ? (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
-                            Full
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                            Available
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Reviews */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.6 }}
-              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
-            >
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
-                <Award className="w-6 h-6 mr-3 text-yellow-500" />
-                Recent Reviews
-              </h2>
-
-              <div className="space-y-4">
-                {reviews.map((review, index) => (
-                  <div
-                    key={index}
-                    className="border-b border-gray-200 dark:border-gray-600 last:border-b-0 pb-4 last:pb-0"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-semibold">
-                            {review.name.charAt(0)}
-                          </span>
-                        </div>
-                        <span className="font-medium text-gray-900 dark:text-white">
-                          {review.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`w-3 h-3 ${
-                                i < review.rating
-                                  ? "text-yellow-400 fill-current"
-                                  : "text-gray-300"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {review.date}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-gray-600 dark:text-gray-300 text-sm">
-                      {review.comment}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
+    <div className="min-h-screen bg-background">
+      {/* Hero Section */}
+      <div className="relative h-80 overflow-hidden">
+        {business.coverPhoto && !imageError ? (
+          <img
+            src={business.coverPhoto}
+            alt={business.name}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-primary flex items-center justify-center">
+            <div className="text-white text-8xl font-bold opacity-20">
+              {business.name.slice(0, 1)}
+            </div>
           </div>
+        )}
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Booking Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.6 }}
-              className="sticky top-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
-            >
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 text-center">
-                Book Your Spot
-              </h3>
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-black/30" />
 
-              <div className="text-center mb-6">
-                <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
-                  ~{avgWait} min
-                </div>
-                <p className="text-sm text-gray-500">Average wait time</p>
+        {/* Back Button */}
+        <div className="absolute top-6 left-6">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-white/90 hover:bg-white"
+            asChild
+          >
+            <Link to="/user-home">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Link>
+          </Button>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="absolute top-6 right-6 flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-white/90 hover:bg-white"
+            onClick={handleBookmark}
+          >
+            {isBookmarked ? (
+              <BookmarkCheck className="w-4 h-4 text-primary" />
+            ) : (
+              <Bookmark className="w-4 h-4" />
+            )}
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-white/90 hover:bg-white"
+            onClick={handleShare}
+          >
+            <Share2 className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Business Info Overlay */}
+        <div className="absolute bottom-6 left-6 right-6">
+          <div className="flex items-end gap-4">
+            <Avatar className="w-16 h-16 border-4 border-white">
+              <AvatarImage src={business.logo} />
+              <AvatarFallback className="bg-gradient-primary text-white text-xl font-bold">
+                {business.name.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+
+            <div className="flex-1 text-white">
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-3xl font-bold">{business.name}</h1>
+                {business.isVerified && (
+                  <Badge className="bg-blue-500 text-white">
+                    <Shield className="w-3 h-3 mr-1" />
+                    Verified
+                  </Badge>
+                )}
               </div>
 
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    People in queue:
-                  </span>
-                  <span className="font-semibold">{totalQueue}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Available services:
-                  </span>
-                  <span className="font-semibold">
-                    {
-                      business.departments.filter(
-                        (d) =>
-                          d.isActive && d.currentQueueSize < d.maxQueueSize,
-                      ).length
-                    }
+              <div className="flex items-center gap-4 text-white/90">
+                <div className="flex items-center gap-1">
+                  <StarRating rating={business.rating} readonly size="sm" />
+                  <span className="font-medium">{business.rating}</span>
+                  <span className="text-sm">
+                    ({business.totalReviews} reviews)
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Rating:
-                  </span>
-                  <div className="flex items-center space-x-1">
-                    <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                    <span className="font-semibold">{business.rating}</span>
-                  </div>
+
+                <div className="flex items-center gap-1">
+                  <MapPin className="w-4 h-4" />
+                  <span className="text-sm">{business.address}</span>
                 </div>
+
+                <Badge
+                  className={cn(
+                    "text-xs",
+                    openStatus
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-500 text-white",
+                  )}
+                >
+                  {openStatus ? "Open Now" : "Closed"}
+                </Badge>
               </div>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleBookingClick()}
-                disabled={
-                  !business.isAcceptingBookings ||
-                  business.departments.every(
-                    (d) => !d.isActive || d.currentQueueSize >= d.maxQueueSize,
-                  )
-                }
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-lg font-semibold hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {!business.isAcceptingBookings
-                  ? "Closed for Bookings"
-                  : business.departments.every(
-                        (d) =>
-                          !d.isActive || d.currentQueueSize >= d.maxQueueSize,
-                      )
-                    ? "All Services Full"
-                    : "Book My Spot"}
-              </motion.button>
-
-              <p className="text-xs text-gray-500 text-center mt-3">
-                No booking fees • Cancel anytime
-              </p>
-            </motion.div>
-
-            {/* Contact Information */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.6 }}
-              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/20 p-6"
-            >
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Contact Information
-              </h3>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center space-x-3">
-                  <MapPin className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-600 dark:text-gray-300">
-                    {business.address}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Phone className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-600 dark:text-gray-300">
-                    +1 (555) 123-4567
-                  </span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Globe className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-600 dark:text-gray-300">
-                    www.business-website.com
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2">
-                  Opening Hours
-                </h4>
-                <div className="space-y-1 text-xs">
-                  {Object.entries(business.openingHours).map(([day, hours]) => (
-                    <div key={day} className="flex justify-between">
-                      <span className="capitalize text-gray-600 dark:text-gray-400">
-                        {day}:
-                      </span>
-                      <span className="text-gray-900 dark:text-white">
-                        {hours.closed
-                          ? "Closed"
-                          : `${hours.start} - ${hours.end}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Quick Actions Bar */}
+      <div className="border-b bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Badge
+                variant="outline"
+                className={cn("text-sm", queueStatus.color)}
+              >
+                <Users className="w-4 h-4 mr-1" />
+                {business.departments.reduce(
+                  (total, dept) => total + dept.currentQueueSize,
+                  0,
+                )}{" "}
+                in queue
+              </Badge>
+
+              <Badge variant="outline" className="text-sm">
+                <Clock className="w-4 h-4 mr-1" />~
+                {Math.round(
+                  business.departments.reduce(
+                    (total, dept) => total + dept.estimatedWaitTime,
+                    0,
+                  ) / business.departments.length,
+                )}
+                min wait
+              </Badge>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {business.contact.phone && (
+                <Button variant="outline" size="sm" onClick={handleCall}>
+                  <Phone className="w-4 h-4 mr-2" />
+                  Call
+                </Button>
+              )}
+
+              {business.contact.whatsapp && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleWhatsApp}
+                  className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  WhatsApp
+                </Button>
+              )}
+
+              <Button className="btn-gradient" onClick={handleBookNow}>
+                <Calendar className="w-4 h-4 mr-2" />
+                Book Now
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-8">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-6"
+        >
+          <TabsList className="grid w-full grid-cols-5 glass">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="queue">Queue & Booking</TabsTrigger>
+            <TabsTrigger value="reviews">Reviews</TabsTrigger>
+            <TabsTrigger value="photos">Photos</TabsTrigger>
+            <TabsTrigger value="info">Info</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Main Info */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Description */}
+                <Card className="glass-strong border-0">
+                  <CardHeader>
+                    <CardTitle>About</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground leading-relaxed">
+                      {business.description}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Departments */}
+                <Card className="glass-strong border-0">
+                  <CardHeader>
+                    <CardTitle>Services & Departments</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {business.departments.map((dept) => {
+                      const status = getDepartmentStatus(dept);
+                      return (
+                        <motion.div
+                          key={dept.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-4 rounded-lg border bg-card/50"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-medium">{dept.name}</h3>
+                            <Badge
+                              className={cn("text-xs", status.color, status.bg)}
+                            >
+                              {status.status}
+                            </Badge>
+                          </div>
+
+                          <p className="text-sm text-muted-foreground mb-3">
+                            {dept.description}
+                          </p>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <span>Queue Status</span>
+                              <span>
+                                {dept.currentQueueSize}/{dept.maxQueueSize}{" "}
+                                people
+                              </span>
+                            </div>
+
+                            <Progress
+                              value={
+                                (dept.currentQueueSize / dept.maxQueueSize) *
+                                100
+                              }
+                              className="h-2"
+                            />
+
+                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                <span>~{dept.estimatedWaitTime}min wait</span>
+                              </div>
+                              {dept.price && (
+                                <div className="flex items-center gap-1">
+                                  <CreditCard className="w-4 h-4" />
+                                  <span>From ${dept.price}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+
+                {/* Weekly Trends */}
+                <Card className="glass-strong border-0">
+                  <CardHeader>
+                    <CardTitle>Weekly Queue Trends</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <AnalyticsChart
+                      title=""
+                      data={trendData}
+                      type="area"
+                      height={200}
+                      valueFormatter={(value) => `${value} bookings`}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sidebar */}
+              <div className="space-y-6">
+                {/* Quick Stats */}
+                <Card className="glass-strong border-0">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Quick Stats</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-3 rounded-lg bg-gradient-success/10">
+                        <div className="text-2xl font-bold text-green-600">
+                          {business.rating}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Rating
+                        </div>
+                      </div>
+
+                      <div className="text-center p-3 rounded-lg bg-gradient-primary/10">
+                        <div className="text-2xl font-bold text-primary">
+                          {business.totalReviews}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Reviews
+                        </div>
+                      </div>
+
+                      <div className="text-center p-3 rounded-lg bg-gradient-secondary/10">
+                        <div className="text-2xl font-bold text-pink-600">
+                          {business.departments.reduce(
+                            (total, dept) => total + dept.currentQueueSize,
+                            0,
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          In Queue
+                        </div>
+                      </div>
+
+                      <div className="text-center p-3 rounded-lg bg-gradient-accent/10">
+                        <div className="text-2xl font-bold text-teal-600">
+                          {Math.round(
+                            business.departments.reduce(
+                              (total, dept) => total + dept.estimatedWaitTime,
+                              0,
+                            ) / business.departments.length,
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Avg Wait (min)
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Opening Hours */}
+                <Card className="glass-strong border-0">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Opening Hours</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {Object.entries(business.openingHours).map(
+                      ([day, hours]) => (
+                        <div
+                          key={day}
+                          className="flex justify-between items-center text-sm"
+                        >
+                          <span className="capitalize font-medium">{day}</span>
+                          <span
+                            className={cn(
+                              "text-muted-foreground",
+                              hours.closed && "text-red-500",
+                            )}
+                          >
+                            {hours.closed
+                              ? "Closed"
+                              : `${hours.start} - ${hours.end}`}
+                          </span>
+                        </div>
+                      ),
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Features */}
+                <Card className="glass-strong border-0">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Features</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Badge variant="outline" className="justify-center p-2">
+                        <Wifi className="w-3 h-3 mr-1" />
+                        Free WiFi
+                      </Badge>
+                      <Badge variant="outline" className="justify-center p-2">
+                        <CreditCard className="w-3 h-3 mr-1" />
+                        Card Payment
+                      </Badge>
+                      <Badge variant="outline" className="justify-center p-2">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        Advance Booking
+                      </Badge>
+                      <Badge variant="outline" className="justify-center p-2">
+                        <Clock3 className="w-3 h-3 mr-1" />
+                        Real-time Queue
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="queue" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <BookingCalendar
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
+                timeSlots={mockTimeSlots}
+                departments={business.departments}
+                selectedDepartment={selectedDepartment}
+                onTimeSlotSelect={setSelectedTimeSlot}
+                selectedTimeSlot={selectedTimeSlot}
+                businessHours={{ start: "09:00", end: "17:00" }}
+                maxAdvanceDays={business.queueSettings.maxAdvanceBookingDays}
+              />
+
+              <div className="space-y-6">
+                {/* Department Selector */}
+                <Card className="glass-strong border-0">
+                  <CardHeader>
+                    <CardTitle>Select Department</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {business.departments.map((dept) => (
+                        <Button
+                          key={dept.id}
+                          variant={
+                            selectedDepartment === dept.id
+                              ? "default"
+                              : "outline"
+                          }
+                          className="w-full justify-start h-auto p-4"
+                          onClick={() => setSelectedDepartment(dept.id)}
+                        >
+                          <div className="text-left">
+                            <div className="font-medium">{dept.name}</div>
+                            <div className="text-xs opacity-75">
+                              {dept.currentQueueSize} in queue • ~
+                              {dept.estimatedWaitTime}min wait
+                            </div>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Selected Booking Summary */}
+                {selectedDate && selectedDepartment && selectedTimeSlot && (
+                  <Card className="glass-strong border-0 border-primary">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Booking Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Department:</span>
+                          <span className="font-medium">
+                            {
+                              business.departments.find(
+                                (d) => d.id === selectedDepartment,
+                              )?.name
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Date:</span>
+                          <span className="font-medium">
+                            {selectedDate.toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Time:</span>
+                          <span className="font-medium">
+                            {selectedTimeSlot.time}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Available Spots:</span>
+                          <span className="font-medium text-green-600">
+                            {selectedTimeSlot.capacity -
+                              selectedTimeSlot.booked}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        className="w-full btn-gradient"
+                        onClick={handleBookNow}
+                      >
+                        Book This Slot
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="reviews" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                {/* Reviews List */}
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <ReviewCard
+                      key={review.id}
+                      review={review}
+                      showBusinessResponse
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Rating Summary */}
+                <Card className="glass-strong border-0">
+                  <CardHeader>
+                    <CardTitle>Rating Overview</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center mb-6">
+                      <div className="text-4xl font-bold">
+                        {business.rating}
+                      </div>
+                      <StarRating rating={business.rating} readonly size="lg" />
+                      <div className="text-sm text-muted-foreground mt-1">
+                        Based on {business.totalReviews} reviews
+                      </div>
+                    </div>
+
+                    <AnalyticsChart
+                      title=""
+                      data={ratingDistribution}
+                      type="pie"
+                      height={200}
+                      showLegend
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="photos">
+            <PhotoGallery
+              photos={
+                business.photos?.map((url, index) => ({
+                  id: `photo-${index}`,
+                  url,
+                  caption: `${business.name} - Photo ${index + 1}`,
+                  category: index < 2 ? "exterior" : "interior",
+                  uploadedAt: new Date().toISOString(),
+                })) || []
+              }
+              title={`${business.name} Photos`}
+              showCategories
+            />
+          </TabsContent>
+
+          <TabsContent value="info" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Contact Information */}
+              <Card className="glass-strong border-0">
+                <CardHeader>
+                  <CardTitle>Contact Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {business.contact.phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="w-5 h-5 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">Phone</div>
+                        <div className="text-sm text-muted-foreground">
+                          {business.contact.phone}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {business.contact.whatsapp && (
+                    <div className="flex items-center gap-3">
+                      <MessageCircle className="w-5 h-5 text-green-600" />
+                      <div>
+                        <div className="font-medium">WhatsApp</div>
+                        <div className="text-sm text-muted-foreground">
+                          {business.contact.whatsapp}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {business.contact.email && (
+                    <div className="flex items-center gap-3">
+                      <MessageSquare className="w-5 h-5 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">Email</div>
+                        <div className="text-sm text-muted-foreground">
+                          {business.contact.email}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {business.contact.website && (
+                    <div className="flex items-center gap-3">
+                      <Globe className="w-5 h-5 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">Website</div>
+                        <a
+                          href={business.contact.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-primary hover:underline flex items-center gap-1"
+                        >
+                          {business.contact.website}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Location */}
+              <Card className="glass-strong border-0">
+                <CardHeader>
+                  <CardTitle>Location</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
+                      <div>
+                        <div className="font-medium">Address</div>
+                        <div className="text-sm text-muted-foreground">
+                          {business.address}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-48 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                      <div className="text-center text-muted-foreground">
+                        <Navigation className="w-8 h-8 mx-auto mb-2" />
+                        <p>Map view would be integrated here</p>
+                        <p className="text-xs">
+                          Google Maps or similar service
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button variant="outline" className="w-full">
+                      <Navigation className="w-4 h-4 mr-2" />
+                      Get Directions
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+
       {/* Booking Modal */}
       <BookingModal
-        business={business}
         isOpen={isBookingModalOpen}
-        onClose={() => {
-          setIsBookingModalOpen(false);
-          setSelectedDepartmentId("");
-        }}
-        preSelectedDepartmentId={selectedDepartmentId}
+        onClose={() => setIsBookingModalOpen(false)}
+        business={business}
+        selectedDepartment={business.departments.find(
+          (d) => d.id === selectedDepartment,
+        )}
+        selectedDate={selectedDate}
+        selectedTimeSlot={selectedTimeSlot}
       />
     </div>
   );
 };
-
-export default BusinessDetail;
