@@ -119,7 +119,8 @@ export interface UserSignupData {
   name: string;
   email: string;
   password: string;
-  phone: string;
+  confirmPassword: string;
+  phone?: string;
 }
 
 export interface BusinessSignupData {
@@ -127,6 +128,7 @@ export interface BusinessSignupData {
   businessName: string;
   email: string;
   password: string;
+  confirmPassword: string;
   category: BusinessCategory;
   address: string;
   description?: string;

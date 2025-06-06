@@ -61,21 +61,9 @@ export const BUSINESS_CATEGORIES = [
     icon: "💪",
     color: "bg-yellow-100 text-yellow-800",
   },
-  {
-    value: "spa" as BusinessCategory,
-    label: "Spas",
-    icon: "🧘‍♀️",
-    color: "bg-emerald-100 text-emerald-800",
-  },
-  {
-    value: "auto-service" as BusinessCategory,
-    label: "Auto Services",
-    icon: "🚗",
-    color: "bg-slate-100 text-slate-800",
-  },
 ];
 
-export const mockUsers: User[] = [
+export let mockUsers: User[] = [
   {
     id: "user-1",
     name: "John Doe",
@@ -130,7 +118,7 @@ export const mockUsers: User[] = [
   },
 ];
 
-export const mockBusinesses: Business[] = [
+export let mockBusinesses: Business[] = [
   {
     id: "business-1",
     name: "City General Hospital",
@@ -534,4 +522,12 @@ export const removeBooking = (bookingId: string) => {
     }
   }
   mockBookings = mockBookings.filter((b) => b.id !== bookingId);
+};
+
+export const addUser = (user: User) => {
+  mockUsers.push(user);
+};
+
+export const addBusiness = (business: Business) => {
+  mockBusinesses.push(business);
 };

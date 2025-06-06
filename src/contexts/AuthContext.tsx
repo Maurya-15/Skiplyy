@@ -5,7 +5,12 @@ import {
   UserSignupData,
   BusinessSignupData,
 } from "../types";
-import { mockUsers, mockBusinesses } from "../data/mockData";
+import {
+  mockUsers,
+  mockBusinesses,
+  addUser,
+  addBusiness,
+} from "../data/mockData";
 import { toast } from "sonner";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -145,6 +150,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         throw new Error("Email already registered");
       }
 
+      if (data.password !== data.confirmPassword) {
+        throw new Error("Passwords do not match");
+      }
+
       // Create new user
       const newUser: User = {
         id: `user-${Date.now()}`,
@@ -158,7 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       };
 
       // Add to mock data
-      mockUsers.push(newUser);
+      addUser(newUser);
 
       // Store session
       const token = `token_${newUser.id}_${Date.now()}`;
@@ -186,6 +195,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const existingUser = mockUsers.find((u) => u.email === data.email);
       if (existingUser) {
         throw new Error("Email already registered");
+      }
+
+      if (data.password !== data.confirmPassword) {
+        throw new Error("Passwords do not match");
       }
 
       // Create new business owner
@@ -227,8 +240,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       };
 
       // Add to mock data
-      mockUsers.push(newOwner);
-      mockBusinesses.push(newBusiness);
+      addUser(newOwner);
+      addBusiness(newBusiness);
 
       // Store session
       const token = `token_${newOwner.id}_${Date.now()}`;

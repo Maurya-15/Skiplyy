@@ -32,7 +32,7 @@ const AccessDenied: React.FC = () => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="text-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl backdrop-blur-sm border border-red-200 dark:border-red-800"
+      className="text-center p-8 bg-white/80 dark:bg-gray-800/80 rounded-2xl shadow-xl backdrop-blur-sm border border-red-200 dark:border-red-800 max-w-md"
     >
       <motion.div
         initial={{ scale: 0 }}
