@@ -203,10 +203,10 @@ const Landing: React.FC = () => {
                 <Link
                   to={
                     user?.role === "user"
-                      ? "/home"
+                      ? "/user-home"
                       : user?.role === "business"
-                        ? "/dashboard"
-                        : "/admin"
+                        ? "/business-dashboard"
+                        : "/admin-dashboard"
                   }
                 >
                   <motion.button
@@ -416,7 +416,7 @@ const Landing: React.FC = () => {
             viewport={{ once: true }}
             className="text-center mt-12"
           >
-            <Link to={isAuthenticated ? "/home" : "/signup-user"}>
+            <Link to={isAuthenticated ? "/user-home" : "/signup-user"}>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -472,10 +472,10 @@ const Landing: React.FC = () => {
                 <Link
                   to={
                     user?.role === "user"
-                      ? "/home"
+                      ? "/user-home"
                       : user?.role === "business"
-                        ? "/dashboard"
-                        : "/admin"
+                        ? "/business-dashboard"
+                        : "/admin-dashboard"
                   }
                 >
                   <motion.button
@@ -514,7 +514,7 @@ const Landing: React.FC = () => {
               <ul className="space-y-2 text-gray-400">
                 <li>
                   <Link
-                    to="/home"
+                    to="/user-home"
                     className="hover:text-white transition-colors"
                   >
                     Browse Services
