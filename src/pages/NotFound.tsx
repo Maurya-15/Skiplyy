@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 
 const NotFound = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
@@ -22,13 +23,21 @@ const NotFound = () => {
 
     switch (user.role) {
       case "user":
-        return "/home";
+        return "/user-home";
       case "business":
-        return "/dashboard";
+        return "/business-dashboard";
       case "admin":
-        return "/admin";
+        return "/admin-dashboard";
       default:
         return "/";
+    }
+  };
+
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate(getHomeLink());
     }
   };
 
@@ -80,17 +89,19 @@ const NotFound = () => {
                     Go Home
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="flex-1">
-                  <Link to="javascript:history.back()">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Go Back
-                  </Link>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleGoBack}
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Go Back
                 </Button>
               </div>
 
               {isAuthenticated && user?.role === "user" && (
                 <Button asChild variant="ghost" className="w-full">
-                  <Link to="/home">
+                  <Link to="/user-home">
                     <Search className="w-4 h-4 mr-2" />
                     Browse Services
                   </Link>
