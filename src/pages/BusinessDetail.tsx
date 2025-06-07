@@ -55,7 +55,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { StarRating } from "../components/Reviews/StarRating";
 import { ReviewCard } from "../components/Reviews/ReviewCard";
 import { PhotoGallery } from "../components/PhotoGallery/PhotoGallery";
-import { BookingCalendar } from "../components/Calendar/BookingCalendar";
+import BookingCalendar from "../components/Calendar/BookingCalendar";
 import { BookingModal } from "../components/BookingModal";
 import { AnalyticsChart } from "../components/Charts/AnalyticsChart";
 import { cn } from "../lib/utils";
