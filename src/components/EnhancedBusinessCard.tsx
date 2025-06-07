@@ -69,7 +69,16 @@ export const EnhancedBusinessCard: React.FC<EnhancedBusinessCardProps> = ({
   // Check if business is open now
   const isOpenNow = () => {
     const now = new Date();
-    const dayOfWeek = now.toLocaleLowerCase().slice(0, 3); // mon, tue, etc.
+    const dayNames = [
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+    ];
+    const dayOfWeek = dayNames[now.getDay()];
     const currentTime = now.toTimeString().slice(0, 5); // HH:MM
 
     const todayHours = business.openingHours[dayOfWeek];
