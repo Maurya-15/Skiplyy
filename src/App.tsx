@@ -12,17 +12,17 @@ import { Navigation } from "./components/Navigation";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 // Pages
-import { Landing } from "./pages/Landing";
-import { Login } from "./pages/Login";
-import { SignupUser } from "./pages/SignupUser";
-import { SignupBusiness } from "./pages/SignupBusiness";
-import { UserHome } from "./pages/UserHome";
-import { BusinessDetail } from "./pages/BusinessDetail";
-import { QueueTracker } from "./pages/QueueTracker";
-import { UserProfile } from "./pages/UserProfile";
-import { BusinessDashboard } from "./pages/BusinessDashboard";
-import { AdminDashboard } from "./pages/AdminDashboard";
-import { NotFound } from "./pages/NotFound";
+import Landing from "./pages/Landing";
+import Login from "./pages/Login";
+import SignupUser from "./pages/SignupUser";
+import SignupBusiness from "./pages/SignupBusiness";
+import UserHome from "./pages/UserHome";
+import BusinessDetail from "./pages/BusinessDetail";
+import QueueTracker from "./pages/QueueTracker";
+import UserProfile from "./pages/UserProfile";
+import BusinessDashboard from "./pages/BusinessDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
+import NotFound from "./pages/NotFound";
 
 const App: React.FC = () => {
   return (
