@@ -30,6 +30,7 @@ import UserProfile from "./pages/UserProfile";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import Help from "./pages/Help";
 
 const App: React.FC = () => {
   return (
@@ -62,7 +63,7 @@ const App: React.FC = () => {
                       path="/signup-business"
                       element={<SignupBusiness />}
                     />
-
+                    <Route path="/help" element={<Help />} />
                     {/* Legacy route redirects */}
                     <Route
                       path="/home"
