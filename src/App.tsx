@@ -16,6 +16,7 @@ import { AppProvider } from "./contexts/AppContext";
 // Components
 import { Navigation } from "./components/Navigation";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import ChatbotTrigger from "./components/Chatbot/ChatbotTrigger";
 
 // Pages
 import Landing from "./pages/Landing";
