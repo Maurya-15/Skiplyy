@@ -422,7 +422,7 @@ const UserProfile: React.FC = () => {
                     You don't have any active bookings right now. Ready to skip
                     the wait?
                   </p>
-                  <Link to="/home">
+                  <Link to="/user-home">
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
