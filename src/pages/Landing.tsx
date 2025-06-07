@@ -21,6 +21,7 @@ import {
   Target,
   Rocket,
   Waves,
+  Building2,
 } from "lucide-react";
 import { mockBusinesses, BUSINESS_CATEGORIES } from "../data/mockData";
 import { useAuth } from "../contexts/AuthContext";
