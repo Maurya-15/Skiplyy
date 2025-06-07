@@ -69,7 +69,7 @@ const SignupUser: React.FC = () => {
         phone: data.phone,
         password: data.password,
       });
-      navigate("/home");
+      navigate("/user-home");
     } catch (error) {
       // Error is already handled in the context with toast
     }
