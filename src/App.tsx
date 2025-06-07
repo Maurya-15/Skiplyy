@@ -1,5 +1,10 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import { Toaster } from "sonner";
 
 // Context Providers
@@ -51,6 +56,20 @@ const App: React.FC = () => {
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup-user" element={<SignupUser />} />
                   <Route path="/signup-business" element={<SignupBusiness />} />
+
+                  {/* Legacy route redirects */}
+                  <Route
+                    path="/home"
+                    element={<Navigate to="/user-home" replace />}
+                  />
+                  <Route
+                    path="/dashboard"
+                    element={<Navigate to="/business-dashboard" replace />}
+                  />
+                  <Route
+                    path="/admin"
+                    element={<Navigate to="/admin-dashboard" replace />}
+                  />
 
                   {/* Protected User Routes */}
                   <Route
