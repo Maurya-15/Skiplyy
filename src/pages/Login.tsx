@@ -47,9 +47,9 @@ const Login: React.FC = () => {
 
       // Redirect based on role
       if (data.role === "user") {
-        navigate("/home");
+        navigate("/user-home");
       } else if (data.role === "business") {
-        navigate("/dashboard");
+        navigate("/business-dashboard");
       } else {
         navigate(from, { replace: true });
       }
