@@ -148,9 +148,16 @@ const BusinessDashboard: React.FC = () => {
   useEffect(() => {
     if (selectedDate && business) {
       const date = new Date(selectedDate);
-      const dayName = date.toLocaleDateString("en-US", {
-        weekday: "lowercase",
-      });
+      const dayNames = [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+      ];
+      const dayName = dayNames[date.getDay()];
       const dayHours = openingHours[dayName];
 
       if (!dayHours || dayHours.closed) {
