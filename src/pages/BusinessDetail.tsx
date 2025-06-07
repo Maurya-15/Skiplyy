@@ -897,3 +897,5 @@ const BusinessDetail: React.FC = () => {
     </div>
   );
 };
+
+export default BusinessDetail;
