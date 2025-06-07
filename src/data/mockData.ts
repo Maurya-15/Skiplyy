@@ -954,3 +954,30 @@ export const updateBookingStatus = (
   }
   return booking;
 };
+
+export const addUser = (user: Omit<User, "id" | "createdAt" | "updatedAt">) => {
+  const newUser: User = {
+    ...user,
+    id: `user-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockUsers.push(newUser);
+  return newUser;
+};
+
+export const addBusiness = (
+  business: Omit<Business, "id" | "createdAt" | "updatedAt">,
+) => {
+  const newBusiness: Business = {
+    ...business,
+    id: `business-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockBusinesses.push(newBusiness);
+  return newBusiness;
+};
+
+// Export mockBookings as an alias for mockQueueBookings for compatibility
+export const mockBookings = mockQueueBookings;
