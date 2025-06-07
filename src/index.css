@@ -476,15 +476,15 @@
 }
 
 .calendar-day.selected {
-  @apply bg-gradient-primary text-white;
+  @apply bg-primary text-primary-foreground;
 }
 
 .calendar-day.available {
-  @apply bg-gradient-success/20 text-green-800;
+  @apply bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300;
 }
 
 .calendar-day.busy {
-  @apply bg-gradient-secondary/20 text-pink-800;
+  @apply bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300;
 }
 
 .calendar-day.full {
