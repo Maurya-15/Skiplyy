@@ -480,11 +480,11 @@
 }
 
 .calendar-day.available {
-  @apply bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300;
+  @apply bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800/40;
 }
 
 .calendar-day.busy {
-  @apply bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300;
+  @apply bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800/40;
 }
 
 .calendar-day.full {
