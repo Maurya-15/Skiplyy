@@ -124,7 +124,7 @@ const QueueTracker: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             The booking you're looking for doesn't exist or has been cancelled.
           </p>
-          <Link to="/home">
+          <Link to="/user-home">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -146,7 +146,7 @@ const QueueTracker: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Header */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Link to="/home">
+        <Link to="/user-home">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
