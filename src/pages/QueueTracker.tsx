@@ -88,7 +88,7 @@ const QueueTracker: React.FC = () => {
     if (confirm("Are you sure you want to cancel this booking?")) {
       toast.success("Booking cancelled successfully");
       // In a real app, this would make an API call
-      window.location.href = "/home";
+      window.location.href = "/user-home";
     }
   };
 
