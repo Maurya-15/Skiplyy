@@ -629,3 +629,5 @@ const BusinessGrid: React.FC<BusinessGridProps> = ({
     </motion.div>
   );
 };
+
+export default UserHome;
