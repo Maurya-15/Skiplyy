@@ -154,6 +154,9 @@ const App: React.FC = () => {
                     },
                   }}
                 />
+
+                {/* AI Chatbot */}
+                <ChatbotTrigger autoShow={true} autoShowDelay={8000} />
               </div>
             </Router>
           </NotificationProvider>
