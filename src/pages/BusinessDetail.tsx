@@ -63,7 +63,7 @@ import { motion } from "framer-motion";
 import { Business, Department, TimeSlot } from "../types";
 import { toast } from "sonner";
 
-export const BusinessDetail: React.FC = () => {
+const BusinessDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);

@@ -53,7 +53,7 @@ import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
-export const UserHome: React.FC = () => {
+const UserHome: React.FC = () => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
   const [businesses, setBusinesses] = useState<Business[]>(mockBusinesses);
