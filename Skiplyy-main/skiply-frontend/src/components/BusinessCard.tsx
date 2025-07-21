@@ -11,6 +11,7 @@ import { useApp } from "@/contexts/AppContext";
 interface BusinessCardProps {
   business: Business;
   index?: number;
+  openNowActive?: boolean;
 }
 
 function getDistanceInKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -26,7 +27,7 @@ function getDistanceInKm(lat1: number, lng1: number, lat2: number, lng2: number)
   return R * c;
 }
 
-export function BusinessCard({ business, index = 0 }: BusinessCardProps) {
+export function BusinessCard({ business, index = 0, openNowActive = false }: BusinessCardProps) {
   const category = BUSINESS_CATEGORIES.find((c) => c.value === business.category);
   const { selectedLocationCoords } = useApp();
 
@@ -164,16 +165,16 @@ export function BusinessCard({ business, index = 0 }: BusinessCardProps) {
 
             <div
               className={`flex items-center space-x-2 text-xs mt-4 ${
-                business.isAcceptingBookings ? "text-green-600" : "text-red-600"
+                openNowActive ? "text-green-600" : business.isAcceptingBookings ? "text-green-600" : "text-red-600"
               }`}
             >
               <div
                 className={`w-2 h-2 rounded-full ${
-                  business.isAcceptingBookings ? "bg-green-500" : "bg-red-500"
+                  openNowActive ? "bg-green-500" : business.isAcceptingBookings ? "bg-green-500" : "bg-red-500"
                 }`}
               />
               <span>
-                {business.isAcceptingBookings
+                {(openNowActive || business.isAcceptingBookings)
                   ? "Accepting Bookings"
                   : "Closed for Bookings"}
               </span>

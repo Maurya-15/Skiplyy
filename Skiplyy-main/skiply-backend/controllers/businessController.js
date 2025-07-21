@@ -146,20 +146,44 @@ export const getAllBusinesses = async (req, res) => {
 };
 
 // ✅ Get only open businesses
+// export const getOpenBusinesses = async (req, res) => {
+//   try {
+//     const day = new Date()
+//       .toLocaleString("en-US", { weekday: "long" })
+//       .toLowerCase();
+
+//     const businesses = await Business.find({
+//       [`openingHours.${day}.closed`]: false,
+//     }).select("-password");
+
+//     res.status(200).json(businesses);
+//   } catch (error) {
+//     console.error("Get Open Businesses Error:", error.message);
+//     res.status(500).json({ message: "Failed to fetch open businesses" });
+//   }
+// };
+
+// ✅ Get all businesses currently open
 export const getOpenBusinesses = async (req, res) => {
   try {
-    const day = new Date()
-      .toLocaleString("en-US", { weekday: "long" })
-      .toLowerCase();
+    const now = new Date();
+    const dayNames = [
+      "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
+    ];
+    const today = dayNames[now.getDay()];
+    const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
 
-    const businesses = await Business.find({
-      [`openingHours.${day}.closed`]: false,
-    }).select("-password");
+    const businesses = await Business.find().select("-password");
+    const openBusinesses = businesses.filter(biz => {
+      const hours = biz.openingHours?.[today];
+      if (!hours || hours.closed) return false;
+      return hours.start <= currentTime && currentTime <= hours.end;
+    });
 
-    res.status(200).json(businesses);
+    res.status(200).json(openBusinesses);
   } catch (error) {
-    console.error("Get Open Businesses Error:", error.message);
-    res.status(500).json({ message: "Failed to fetch open businesses" });
+    console.error("Open Businesses Error:", error.message);
+    res.status(500).json({ message: "Failed to load open businesses" });
   }
 };
 

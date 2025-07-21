@@ -7,7 +7,8 @@ import {
   getAllBusinesses,
   getOpenBusinesses,
   getAllBusinessDashboard,
-  getBusinessById, // ✅ ADD THIS
+  getBusinessById,
+  getBusinessByOwnerId, // ✅ NEW: fetch by ownerId
 } from "../controllers/businessController.js";
 import { getNearbyBusinesses } from "../controllers/businessController.js";
 
@@ -22,6 +23,7 @@ router.post("/login", loginBusiness);
 router.get("/all", getAllBusinesses); // All businesses (admin/user public)
 router.get("/open", getOpenBusinesses); // Open businesses (for customers)
 router.get("/dashboard", getAllBusinessDashboard);
+router.get("/owner/:ownerId", getBusinessByOwnerId); // NEW: fetch business by ownerId
 router.get("/:id", getBusinessById);
 router.get("/nearby", getNearbyBusinesses);
 router.get("/", getAllBusinesses);

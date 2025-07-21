@@ -49,7 +49,8 @@ import {
 } from "../data/mockData";
 import { useAuth } from "../contexts/AuthContext";
 import { useNotifications } from "../contexts/NotificationContext";
-import { Business, BusinessCategory, SearchFilters } from "../types";
+import { Business, SearchFilters } from "../types";
+import { BusinessCategory } from "@/lib/types";
 import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -62,6 +63,7 @@ interface BusinessGridProps {
   onBookmarkToggle: (businessId: string) => void;
   userLat: number | null;
   userLng: number | null;
+  openNowActive: boolean;
 }
 
 const BusinessGrid: React.FC<BusinessGridProps> = ({
@@ -71,6 +73,7 @@ const BusinessGrid: React.FC<BusinessGridProps> = ({
   onBookmarkToggle,
   userLat,
   userLng,
+  openNowActive,
 }) => {
   if (businesses.length === 0) {
     return (
@@ -110,6 +113,7 @@ const BusinessGrid: React.FC<BusinessGridProps> = ({
                 index={index}
                 userLat={userLat}
                 userLng={userLng}
+                openNowActive={openNowActive}
               />
               {Array.isArray(business.departments) &&
                 business.departments.length > 0 && (
@@ -154,17 +158,28 @@ const UserHome: React.FC = () => {
   const [userLng, setUserLng] = useState<number | null>(null);
 
   const [filters, setFilters] = useState<SearchFilters>({
-    openNow: false,
+    openNow: true,
     rating: 0,
     sortBy: "distance",
     radius: 10,
   });
 
+  // Fetch businesses from backend depending on Open Now filter
   useEffect(() => {
-    if (fetchedBusinesses.length > 0) {
-      setBusinesses(fetchedBusinesses);
-    }
-  }, [fetchedBusinesses]);
+    const fetchBusinesses = async () => {
+      let url = filters.openNow
+        ? "http://localhost:5050/api/businesses/open"
+        : "http://localhost:5050/api/businesses/all";
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        setBusinesses(data);
+      } catch (err) {
+        console.error("Failed to fetch businesses", err);
+      }
+    };
+    fetchBusinesses();
+  }, [filters.openNow]);
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
@@ -238,9 +253,7 @@ const UserHome: React.FC = () => {
       filtered = filtered.filter((business) => business.rating >= filters.rating);
     }
 
-    if (filters.openNow) {
-      filtered = filtered.filter((business) => isBusinessOpen(business));
-    }
+
 
     filtered.sort((a, b) => {
       switch (filters.sortBy) {
@@ -554,6 +567,7 @@ const UserHome: React.FC = () => {
                     onBookmarkToggle={handleBookmarkToggle}
                     userLat={userLat}
                     userLng={userLng}
+                    openNowActive={filters.openNow}
                   />
                 ) : (
                   <p>No businesses available</p>
@@ -577,6 +591,7 @@ const UserHome: React.FC = () => {
                   onBookmarkToggle={handleBookmarkToggle}
                   userLat={userLat}
                   userLng={userLng}
+                  openNowActive={filters.openNow}
                 />
               </TabsContent>
 
@@ -589,6 +604,7 @@ const UserHome: React.FC = () => {
                     onBookmarkToggle={handleBookmarkToggle}
                     userLat={userLat}
                     userLng={userLng}
+                    openNowActive={filters.openNow}
                   />
                 ) : (
                   <div className="text-center py-12">
@@ -612,6 +628,7 @@ const UserHome: React.FC = () => {
                     onBookmarkToggle={handleBookmarkToggle}
                     userLat={userLat}
                     userLng={userLng}
+                    openNowActive={filters.openNow}
                   />
                 ) : (
                   <div className="text-center py-12">

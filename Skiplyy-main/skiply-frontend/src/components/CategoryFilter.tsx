@@ -9,22 +9,36 @@ import { BUSINESS_CATEGORIES } from "@/lib/constants";
 import { BusinessCategory } from "@/lib/types";
 import { useApp } from "@/contexts/AppContext";
 
-export function CategoryFilter() {
-  const { selectedCategory, setSelectedCategory } = useApp();
+export interface CategoryFilterCategory {
+  value: BusinessCategory;
+  label: string;
+  icon: string;
+  // allow extra fields (like color) for flexibility
+  [key: string]: any;
+}
 
+export interface CategoryFilterProps {
+  categories: CategoryFilterCategory[];
+  selectedCategory: BusinessCategory | "all";
+  onCategorySelect: (category: BusinessCategory | "all") => void;
+}
+
+export function CategoryFilter({
+  categories,
+  selectedCategory,
+  onCategorySelect,
+}: CategoryFilterProps) {
   return (
     <Select
       value={selectedCategory}
-      onValueChange={(value: BusinessCategory | "all") =>
-        setSelectedCategory(value)
-      }
+      onValueChange={onCategorySelect}
     >
       <SelectTrigger className="w-[200px]">
         <SelectValue placeholder="Select category" />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">All Categories</SelectItem>
-        {BUSINESS_CATEGORIES.map((category) => (
+        {categories.map((category) => (
           <SelectItem key={category.value} value={category.value}>
             <div className="flex items-center space-x-2">
               <span>{category.icon}</span>

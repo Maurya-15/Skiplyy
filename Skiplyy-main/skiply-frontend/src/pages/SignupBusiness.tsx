@@ -78,12 +78,24 @@ const ProgressBar = ({ currentStep, totalSteps }) => {
 };
 
 const SignupBusiness: React.FC = () => {
+  // Only declare these once
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [images, setImages] = useState([]);
+  const [isStepValid, setIsStepValid] = useState(false);
   const navigate = useNavigate();
+
+  // Define which fields are required for each step
+  const stepFields: Record<number, (keyof SignupFormData)[]> = {
+    1: ["ownerName", "businessName", "email", "phone"],
+    2: ["category", "address"],
+    3: ["departments"],
+    4: ["openingHours"], // Validate the whole openingHours object for step 4
+    5: ["password", "confirmPassword"],
+    6: [], // Images are optional
+  };
 
   const {
     register,
@@ -91,6 +103,7 @@ const SignupBusiness: React.FC = () => {
     control,
     watch,
     setValue,
+    trigger,
     formState: { errors },
   } = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
@@ -150,6 +163,8 @@ const SignupBusiness: React.FC = () => {
     })(),
   });
 
+  const watchedFields = watch(stepFields[currentStep] ?? []);
+
   const { fields, append, remove } = useFieldArray({
     control,
     name: "departments",
@@ -177,6 +192,21 @@ const SignupBusiness: React.FC = () => {
     }
   }, [setValue]);
 
+  // Step validation effect
+  useEffect(() => {
+    const validateStep = async () => {
+      if (stepFields[currentStep] && stepFields[currentStep].length > 0) {
+        const valid = await trigger(stepFields[currentStep]);
+        setIsStepValid(valid);
+      } else {
+        setIsStepValid(true); // For steps with no required fields
+      }
+    };
+    validateStep();
+    // Watch for changes in relevant fields
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, ...stepFields[currentStep]?.map(f => watch(f))]);
+
 
 
 
@@ -197,76 +227,116 @@ const SignupBusiness: React.FC = () => {
     setImages(newImages);
   };
 
-const onSubmit = async (data: any) => {
-  try {
-    if (!data.location.lat || !data.location.lng) {
-      alert("Location coordinates are required. Please enter a valid address.");
-      return;
+  // Improved geocoding function
+  const tryGeocode = async (address: string): Promise<{lat: number, lng: number} | null> => {
+    // Try full address first
+    let response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+    let data = await response.json();
+    if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+
+    // Try by parts, from most general to least
+    const parts = address.split(',').map(s => s.trim()).reverse();
+    for (const part of parts) {
+      if (!part) continue;
+      response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(part)}`);
+      data = await response.json();
+      if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
     }
 
-    const formData = new FormData();
+    // Try last word as a keyword
+    const words = address.split(' ').filter(Boolean);
+    if (words.length > 0) {
+      const keyword = words[words.length - 1];
+      response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(keyword)}`);
+      data = await response.json();
+      if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
 
-    // Append basic fields
-    formData.append("ownerName", data.ownerName);
-    formData.append("businessName", data.businessName);
-    formData.append("email", data.email);
-    formData.append("phone", data.phone);
-    formData.append("password", data.password);
-    formData.append("category", data.category);
-    formData.append("address", data.address);
-    formData.append("description", data.description || "");
+    // If all fail
+    return null;
+  };
 
-    // Append JSON fields
-    formData.append("departments", JSON.stringify(data.departments));
-    formData.append("openingHours", JSON.stringify(data.openingHours));
+  const onSubmit = async (data: any) => {
+    // Ensure latest coordinates for the address before submitting
+    if (data.address && (!data.location.lat || !data.location.lng)) {
+      try {
+        const coords = await tryGeocode(data.address);
+        if (coords) {
+          data.location.lat = coords.lat;
+          data.location.lng = coords.lng;
+        }
+      } catch {}
+    }
 
-    // Upload images and append image URLs
-    const imageUrls = await uploadImages(images);
-    formData.append("images", JSON.stringify(imageUrls));
-
-    // Append location data
-    formData.append("latitude", data.location.lat.toString());
-    formData.append("longitude", data.location.lng.toString());
-
-    console.log("Submitting form data:", {
-      ownerName: data.ownerName,
-      businessName: data.businessName,
-      email: data.email,
-      phone: data.phone,
-      category: data.category,
-      address: data.address,
-      latitude: data.location.lat,
-      longitude: data.location.lng,
-      departments: data.departments,
-      imageCount: imageUrls.length
-    });
-
-    // API request
-    const response = await axios.post(
-      "http://localhost:5050/api/businesses/register",
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+    try {
+      if (!data.location.lat || !data.location.lng) {
+        alert("Location coordinates are required. Please enter a valid address.");
+        return;
       }
-    );
 
-    // Success
-    alert(response.data.message);
-    localStorage.setItem("token", response.data.token);
-    localStorage.setItem("user", JSON.stringify(response.data.user));
-    localStorage.removeItem('businessSignupForm');
-    navigate("/dashboard");
-  } catch (error: any) {
-    console.error("Signup failed:", error);
-    if (error.response) {
-      console.error("Response data:", error.response.data);
-      alert(`Signup failed: ${error.response.data.message}`);
-    } else {
-      alert("Signup failed: Server not responding");
+      const formData = new FormData();
+
+      // Append basic fields
+      formData.append("ownerName", data.ownerName);
+      formData.append("businessName", data.businessName);
+      formData.append("email", data.email);
+      formData.append("phone", data.phone);
+      formData.append("password", data.password);
+      formData.append("category", data.category);
+      formData.append("address", data.address);
+      formData.append("description", data.description || "");
+
+      // Append JSON fields
+      formData.append("departments", JSON.stringify(data.departments));
+      formData.append("openingHours", JSON.stringify(data.openingHours));
+
+      // Upload images and append image URLs
+      const imageUrls = await uploadImages(images);
+      formData.append("images", JSON.stringify(imageUrls));
+
+      // Append location data
+      formData.append("latitude", data.location.lat.toString());
+      formData.append("longitude", data.location.lng.toString());
+
+      console.log("Submitting form data:", {
+        ownerName: data.ownerName,
+        businessName: data.businessName,
+        email: data.email,
+        phone: data.phone,
+        category: data.category,
+        address: data.address,
+        latitude: data.location.lat,
+        longitude: data.location.lng,
+        departments: data.departments,
+        imageCount: imageUrls.length
+      });
+
+      // API request
+      const response = await axios.post(
+        "http://localhost:5050/api/businesses/register",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      // Success
+      alert(response.data.message);
+      localStorage.setItem("token", response.data.token);
+      localStorage.setItem("user", JSON.stringify(response.data.user));
+      localStorage.removeItem('businessSignupForm');
+      navigate("/dashboard");
+    } catch (error: any) {
+      console.error("Signup failed:", error);
+      if (error.response) {
+        console.error("Response data:", error.response.data);
+        alert(`Signup failed: ${error.response.data.message}`);
+      } else {
+        alert("Signup failed: Server not responding");
+      }
     }
-  }
 };
 
   const uploadImages = async (images) => {
@@ -524,7 +594,7 @@ const onSubmit = async (data: any) => {
                         </p>
                       )}
                     </div>
-                    <Button type="button" onClick={nextStep}>
+                    <Button type="button" onClick={nextStep} disabled={!isStepValid}>
                       Next
                     </Button>
                   </div>
@@ -571,56 +641,23 @@ const onSubmit = async (data: any) => {
                         </label>
                         <div className="relative flex items-center">
                           <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                          <input
+                          <Input
                             {...register("address")}
-                            type="text"
                             id="address"
-                            className="w-full pl-10 pr-16 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                            placeholder="Complete address"
+                            placeholder="Business Address"
+                            className="pr-32"
+                            autoComplete="off"
                             onBlur={async (e) => {
                               const address = e.target.value;
                               if (!address) return;
                               try {
-                                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(address)}`);
-                                const data = await response.json();
-                                if (data && data.length > 0) {
-                                  setValue("location.lat", parseFloat(data[0].lat));
-                                  setValue("location.lng", parseFloat(data[0].lon));
-                                  const addr = data[0].address || {};
-                                  let precise = '';
-                                  if (addr.building) precise += addr.building + ', ';
-                                  if (addr.house_number) precise += addr.house_number + ', ';
-                                  if (addr.road) precise += addr.road + ', ';
-                                  if (addr.neighbourhood) precise += addr.neighbourhood + ', ';
-                                  if (addr.suburb) precise += addr.suburb + ', ';
-                                  if (addr.city) precise += addr.city + ', ';
-                                  if (addr.state) precise += addr.state + ', ';
-                                  if (addr.country) precise += addr.country;
-                                  precise = precise.replace(/, $/, '');
-                                  setValue("address", precise || data[0].display_name);
+                                const coords = await tryGeocode(address);
+                                if (coords) {
+                                  setValue("location.lat", coords.lat);
+                                  setValue("location.lng", coords.lng);
                                 } else {
-                                  const fallback = address.split(",")[0];
-                                  const fallbackResp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(fallback)}`);
-                                  const fallbackData = await fallbackResp.json();
-                                  if (fallbackData && fallbackData.length > 0) {
-                                    setValue("location.lat", parseFloat(fallbackData[0].lat));
-                                    setValue("location.lng", parseFloat(fallbackData[0].lon));
-                                    const addr = fallbackData[0].address || {};
-                                    let precise = '';
-                                    if (addr.building) precise += addr.building + ', ';
-                                    if (addr.house_number) precise += addr.house_number + ', ';
-                                    if (addr.road) precise += addr.road + ', ';
-                                    if (addr.neighbourhood) precise += addr.neighbourhood + ', ';
-                                    if (addr.suburb) precise += addr.suburb + ', ';
-                                    if (addr.city) precise += addr.city + ', ';
-                                    if (addr.state) precise += addr.state + ', ';
-                                    if (addr.country) precise += addr.country;
-                                    precise = precise.replace(/, $/, '');
-                                    setValue("address", precise || fallbackData[0].display_name);
-                                  } else {
-                                    setValue("location.lat", 0);
-                                    setValue("location.lng", 0);
-                                  }
+                                  setValue("location.lat", 0);
+                                  setValue("location.lng", 0);
                                 }
                               } catch (e) {
                                 setValue("location.lat", 0);
@@ -701,7 +738,7 @@ const onSubmit = async (data: any) => {
                     <Button type="button" onClick={prevStep} className="mr-2">
                       Previous
                     </Button>
-                    <Button type="button" onClick={nextStep}>
+                    <Button type="button" onClick={nextStep} disabled={!isStepValid}>
                       Next
                     </Button>
                   </div>
@@ -762,7 +799,7 @@ const onSubmit = async (data: any) => {
                     <Button type="button" onClick={prevStep} className="mr-2">
                       Previous
                     </Button>
-                    <Button type="button" onClick={nextStep}>
+                    <Button type="button" onClick={nextStep} disabled={!isStepValid}>
                       Next
                     </Button>
                   </div>
@@ -811,7 +848,7 @@ const onSubmit = async (data: any) => {
                     <Button type="button" onClick={prevStep} className="mr-2">
                       Previous
                     </Button>
-                    <Button type="button" onClick={nextStep}>
+                    <Button type="button" onClick={nextStep} disabled={!isStepValid}>
                       Next
                     </Button>
                   </div>
@@ -923,7 +960,7 @@ const onSubmit = async (data: any) => {
                     <Button type="button" onClick={prevStep} className="mr-2">
                       Previous
                     </Button>
-                    <Button type="button" onClick={nextStep}>
+                    <Button type="button" onClick={nextStep} disabled={!isStepValid}>
                       Next
                     </Button>
                   </div>
