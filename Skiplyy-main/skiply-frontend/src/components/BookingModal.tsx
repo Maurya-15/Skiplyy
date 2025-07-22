@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { Business, BookingFormData, QueueBooking } from "../types";
 import { useAuth } from "../contexts/AuthContext";
-import { mockBookings, addBooking } from "../data/mockData";
+import axios from "axios";
+import QRCode from "react-qr-code";
 import { toast } from "sonner";
 
 const bookingSchema = z.object({
@@ -99,36 +100,50 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const handleConfirmBooking = async (data: FormData) => {
     setIsLoading(true);
-
     try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      const department = business.departments.find(
-        (d) => d.id === data.departmentId,
-      );
+      const department = business.departments.find((d) => d.id === data.departmentId);
       if (!department) throw new Error("Department not found");
 
-      // Create new booking
-      const newBooking: QueueBooking = {
-        id: `booking_${Date.now()}`,
-        userId: user?.id || "guest",
-        businessId: business.id,
-        departmentId: data.departmentId,
-        tokenNumber: department.currentQueueSize + 1,
-        status: "waiting",
+      // Prepare booking data for backend
+      // Debug log to inspect the business object
+      console.log('Business object in booking:', business);
+      
+      // Safely get business ID with type assertion
+      const businessId = (business as any)._id;
+      
+      if (!businessId) {
+        console.error('No business ID found in business object:', business);
+        throw new Error('Business ID is missing. Cannot create booking.');
+      }
+      
+      // Ensure we have a string ID for the payload
+      const businessIdString = businessId.toString();
+      
+      const bookingPayload = {
+        business: businessIdString,  // Will be cast to ObjectId on backend
+        businessId: businessIdString,  // Store as string for easier reference
+        businessName: business.name,
+        departmentName: department.name,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         notes: data.notes,
-        estimatedWaitTime: department.estimatedWaitTime,
         bookedAt: new Date().toISOString(),
       };
-
-      // Add to mock data
-      addBooking(newBooking);
-      setBooking(newBooking);
+      
+      console.log('Sending booking payload:', bookingPayload);
+      console.log('Booking payload being sent:', bookingPayload);
+      // Get auth token
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        "http://localhost:5050/api/queues/book",
+        bookingPayload,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const bookingRes = res.data;
+      setBooking(bookingRes);
       setCurrentStep("success");
-
       toast.success("Booking confirmed successfully!");
     } catch (error) {
       toast.error("Booking failed. Please try again.");
@@ -136,6 +151,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setIsLoading(false);
     }
   };
+
 
   const steps = [
     { id: "department", title: "Select Service", icon: Calendar },
@@ -223,12 +239,20 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   initial="initial"
                   animate="animate"
                   exit="exit"
-                  className="space-y-4"
+                  className="space-y-6"
                 >
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                    Select a Service
-                  </h3>
-
+                  <div className="text-center mb-4">
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      Select a Service
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">
+                      Choose the department or service you want to book.
+                    </p>
+                    <div className="flex justify-center mt-2">
+                      <Calendar className="w-8 h-8 text-blue-500" />
+                    </div>
+                    <hr className="my-4 border-t border-gray-200 dark:border-gray-700" />
+                  </div>
                   <div className="space-y-3">
                     {business.departments.map((department) => (
                       <motion.button
@@ -530,59 +554,46 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   exit="exit"
                   className="text-center space-y-6"
                 >
-                  <div className="flex justify-center">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: 0.2, type: "spring" }}
-                      className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center"
-                    >
-                      <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
-                    </motion.div>
+                  <CheckCircle className="mx-auto w-16 h-16 text-green-500 mb-4" />
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Booking Confirmed!
+                  </h3>
+                  <p className="text-gray-700 dark:text-gray-300 mb-4">
+                    Your spot has been reserved successfully
+                  </p>
+                  <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-6 mb-4">
+                    <span className="block text-3xl font-bold text-green-600 mb-2">
+                      Token #{booking.tokenNumber || booking._id}
+                    </span>
+                    <span className="block text-gray-600 dark:text-gray-400">
+                      Estimated wait time: {booking.estimatedWaitTime || 10} minutes
+                    </span>
+                    <span className="block text-gray-500 dark:text-gray-500 text-sm mt-1">
+                      Booked at: {new Date(booking.createdAt || Date.now()).toLocaleTimeString()}
+                    </span>
                   </div>
-
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                      Booking Confirmed!
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      Your spot has been reserved successfully
-                    </p>
-                  </div>
-
-                  <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-xl">
-                    <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">
-                      Token #{booking.tokenNumber}
+                  {/* QR Code Section */}
+                  <div className="flex flex-col items-center justify-center mb-4">
+                    <span className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Your QR Code</span>
+                    <div className="bg-white p-4 rounded-lg shadow border inline-block">
+                      <QRCode value={booking.qrCode || booking._id || "skiplyy"} size={160} />
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                      <div>
-                        Estimated wait time: {booking.estimatedWaitTime} minutes
-                      </div>
-                      <div>
-                        Booked at:{" "}
-                        {new Date(booking.bookedAt).toLocaleTimeString()}
-                      </div>
-                    </div>
+                    <span className="text-xs text-gray-500 mt-2">Scan this at the business location</span>
                   </div>
-
-                  <div className="space-y-3">
-                    <button
-                      onClick={onClose}
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-200"
-                    >
-                      Done
-                    </button>
-                    <button
-                      onClick={() => {
-                        onClose();
-                        // In a real app, this would navigate to the queue tracker
-                        window.location.href = `/queue/${booking.id}`;
-                      }}
-                      className="w-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 py-3 rounded-lg font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200"
-                    >
-                      Track My Queue
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-200 mb-4"
+                    onClick={onClose}
+                  >
+                    Done
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full border border-blue-600 text-blue-600 py-3 rounded-lg font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
+                    onClick={() => window.location.href = '/my-queue'}
+                  >
+                    Track My Queue
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>

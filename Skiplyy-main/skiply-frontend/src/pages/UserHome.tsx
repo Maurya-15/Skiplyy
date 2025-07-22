@@ -173,7 +173,12 @@ const UserHome: React.FC = () => {
       try {
         const res = await fetch(url);
         const data = await res.json();
-        setBusinesses(data);
+        if (!filters.openNow) {
+          // Only show closed businesses when "Open Now" is off
+          setBusinesses(data.filter((business) => !isBusinessOpen(business)));
+        } else {
+          setBusinesses(data);
+        }
       } catch (err) {
         console.error("Failed to fetch businesses", err);
       }

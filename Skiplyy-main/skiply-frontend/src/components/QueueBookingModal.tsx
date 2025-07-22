@@ -38,6 +38,7 @@ interface QueueBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (booking: QueueBooking) => void;
+  onServiceSelect?: (service: string) => void;
 }
 
 type BookingStep = "department" | "details" | "confirm" | "success";
@@ -68,6 +69,9 @@ export function QueueBookingModal({
   const handleDepartmentSelect = (department: Department) => {
     setSelectedDepartment(department);
     form.setValue("departmentId", department.id);
+    if (onServiceSelect) {
+      onServiceSelect(department.name);
+    }
     setStep("details");
   };
 
@@ -137,11 +141,7 @@ export function QueueBookingModal({
                     <button
                       key={dept.id}
                       onClick={() => handleDepartmentSelect(dept)}
-                      disabled={
-                        !dept.isActive ||
-                        dept.currentQueueSize >= dept.maxQueueSize
-                      }
-                      className="w-full p-3 text-left border rounded-lg hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full p-3 text-left border rounded-lg hover:bg-accent transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
                     >
                       <div className="flex justify-between items-start">
                         <div>

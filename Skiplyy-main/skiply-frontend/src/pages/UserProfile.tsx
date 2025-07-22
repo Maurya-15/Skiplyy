@@ -329,7 +329,9 @@ const UserProfile: React.FC = () => {
                     <Calendar className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-700 dark:text-gray-300">
                       Member since{" "}
-                      {new Date(user?.createdAt || "").toLocaleDateString()}
+                      {user?.createdAt && !isNaN(new Date(user.createdAt).getTime())
+                        ? new Date(user.createdAt).toLocaleDateString()
+                        : "N/A"}
                     </span>
                   </div>
 

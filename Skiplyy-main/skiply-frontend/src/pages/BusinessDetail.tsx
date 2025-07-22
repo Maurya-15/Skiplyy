@@ -54,6 +54,7 @@ import { PhotoGallery } from "../components/PhotoGallery/PhotoGallery";
 import BookingCalendar from "../components/Calendar/BookingCalendar";
 import { BookingModal } from "../components/BookingModal";
 import { AnalyticsChart } from "../components/Charts/AnalyticsChart";
+import BusinessMap from "../components/BusinessMap";
 import { cn } from "../lib/utils";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -82,6 +83,7 @@ const BusinessDetail: React.FC = () => {
         const fetchedBusiness = response.data;
 
         const transformedBusiness = {
+          _id: fetchedBusiness._id, // Ensure _id is included
           name: fetchedBusiness.businessName,
           description: fetchedBusiness.description || "",
           address: fetchedBusiness.address,
@@ -102,6 +104,10 @@ const BusinessDetail: React.FC = () => {
             email: fetchedBusiness.email,
             whatsapp: "",
             website: "",
+          },
+          location: {
+            lat: fetchedBusiness.lat || fetchedBusiness.latitude || 23.02067,
+            lng: fetchedBusiness.lng || fetchedBusiness.longitude || 72.4640772,
           },
           rating: 4.5,
           totalReviews: 25,
@@ -468,15 +474,33 @@ const BusinessDetail: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
                 <Card className="glass-strong border-0">
-                  <CardHeader>
-                    <CardTitle>About</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {business.description}
-                    </p>
-                  </CardContent>
-                </Card>
+  <CardHeader>
+    <CardTitle>About</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <p className="text-muted-foreground leading-relaxed">
+      {business.description}
+    </p>
+  </CardContent>
+</Card>
+
+<Card className="glass-strong border-0">
+  <CardHeader>
+    <CardTitle>Location & Directions</CardTitle>
+  </CardHeader>
+  <CardContent>
+    {business.location && typeof business.location.lat === "number" && typeof business.location.lng === "number" ? (
+      <BusinessMap
+        lat={business.location.lat}
+        lng={business.location.lng}
+        name={business.name}
+        height="300px"
+      />
+    ) : (
+      <div className="text-muted-foreground">Location coordinates not available.</div>
+    )}
+  </CardContent>
+</Card>
 
                 <Card className="glass-strong border-0">
                   <CardHeader>

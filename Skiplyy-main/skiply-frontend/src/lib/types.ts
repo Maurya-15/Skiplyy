@@ -38,17 +38,20 @@ export interface Department {
 }
 
 export interface QueueBooking {
-  id: string;
-  userId: string;
-  businessId: string;
-  departmentId: string;
-  tokenNumber: number;
-  status: "waiting" | "in-progress" | "completed" | "cancelled";
-  estimatedWaitTime: number;
+  id?: string;
+  _id?: string;
+  userId?: string;
+  businessId?: string;
+  departmentId?: string;
+  tokenNumber?: number;
+  status?: "waiting" | "in-progress" | "completed" | "cancelled";
+  customerName?: string;
+  customerPhone?: string;
   notes?: string;
-  bookedAt: string;
-  userName: string;
-  userPhone: string;
+  estimatedWaitTime?: number;
+  bookedAt?: string;
+  createdAt?: string;
+  qrCode?: string;
 }
 
 export interface BusinessOwner extends User {

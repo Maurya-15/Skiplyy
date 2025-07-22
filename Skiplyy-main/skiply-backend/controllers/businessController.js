@@ -203,11 +203,14 @@ export const getAllBusinessDashboard = async (req, res) => {
 // ✅ Get single business by ID
 export const getBusinessById = async (req, res) => {
   try {
-    const business = await Business.findById(req.params.id).select("-password");
+    // Ensure we include _id in the response
+    const business = await Business.findById(req.params.id).select("-password -__v");
     if (!business) {
       return res.status(404).json({ message: "Business not found" });
     }
-    res.status(200).json(business);
+    // Convert to plain object to ensure all fields including _id are included
+    const businessObj = business.toObject();
+    res.status(200).json(businessObj);
   } catch (error) {
     console.error("Get Business By ID Error:", error.message);
     res.status(500).json({ message: "Failed to fetch business" });
