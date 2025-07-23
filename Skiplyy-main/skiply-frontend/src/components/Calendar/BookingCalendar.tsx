@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { mockBusinesses } from "@/lib/api";
+import { queueAPI } from "@/lib/api";
 import type { Business } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -38,6 +38,7 @@ import {
 } from "../ui/select";
 import { toast } from "sonner";
 import "./BookingCalendar.css";
+import { AdvanceBookingModal } from "./AdvanceBookingModal";
 
 interface TimeSlot {
   id: string;
@@ -61,7 +62,7 @@ interface BookingSlot {
 }
 
 interface BookingCalendarProps {
-  businessId: string;
+  business: Business;
   onBookingCreate?: (booking: BookingSlot) => void;
   onBookingUpdate?: (booking: BookingSlot) => void;
   onBookingDelete?: (bookingId: string) => void;
@@ -69,69 +70,34 @@ interface BookingCalendarProps {
 }
 
 const BookingCalendar: React.FC<BookingCalendarProps> = ({
-  businessId,
+  business,
   onBookingCreate,
   onBookingUpdate,
   onBookingDelete,
   isManagementMode = false,
 }) => {
-
-  const [business, setBusiness] = useState<Business | null>(null);
-
-  useEffect(() => {
-    // Find the business by _id from mockBusinesses
-    const found = mockBusinesses.find((b) => b._id === businessId);
-    setBusiness(found || null);
-  }, [businessId]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(
-    null,
-  );
-  const [dateSlots, setDateSlots] = useState<{ [date: string]: TimeSlot[] }>({});
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-const [selectedService, setSelectedService] = useState<string>("");
-  const [editingBooking, setEditingBooking] = useState<BookingSlot | null>(
-    null,
-  );
-  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
+  const [slotStartTime, setSlotStartTime] = useState<string | undefined>(undefined);
+  const [slotEndTime, setSlotEndTime] = useState<string | undefined>(undefined);
+  const [selectedService, setSelectedService] = useState<string>("");
+  const [now, setNow] = useState(new Date());
+  const [dateSlots, setDateSlots] = useState<{ [key: string]: TimeSlot[] }>({});
+  const [isAdvanceBookingModalOpen, setIsAdvanceBookingModalOpen] = useState(false);
+  const [selectedSlotDate, setSelectedSlotDate] = useState<Date | null>(null);
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
 
-  const [bookingForm, setBookingForm] = useState({
-    customerName: "",
-    customerPhone: "",
-    customerEmail: "",
-    service: "",
-    notes: "",
-    duration: 30,
-    amount: 0,
-  });
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // Generate calendar days
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days = [];
-
-    // Add empty slots for days before the first day of the month
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
-
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(year, month, day));
-    }
-
-    return days;
-  };
-
-  // Generate time slots for a specific date
+  // Add this function above the useEffect for slot generation
   const generateTimeSlots = (date: Date): TimeSlot[] => {
     const slots: TimeSlot[] = [];
     const startHour = 9; // 9 AM
@@ -155,38 +121,31 @@ const [selectedService, setSelectedService] = useState<string>("");
     return slots;
   };
 
-  // Update time slots when date changes
+  // Restore original slot generation logic
   useEffect(() => {
     const dateString = selectedDate.toDateString();
-    if (dateSlots[dateString]) {
+    if (dateSlots && dateSlots[dateString]) {
       setTimeSlots(dateSlots[dateString]);
     } else {
       const slots = generateTimeSlots(selectedDate);
       setDateSlots((prev) => ({ ...prev, [dateString]: slots }));
       setTimeSlots(slots);
     }
-  }, [selectedDate, dateSlots]);
+  }, [selectedDate]);
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
-    const dateString = date.toDateString();
-    if (dateSlots[dateString]) {
-      setTimeSlots(dateSlots[dateString]);
-    } else {
-      const slots = generateTimeSlots(date);
-      setDateSlots((prev) => ({ ...prev, [dateString]: slots }));
-      setTimeSlots(slots);
-    }
   };
 
   const handleTimeSlotSelect = (slot: TimeSlot) => {
-    setSelectedTimeSlot(slot);
-    setIsBookingModalOpen(true);
+    setSelectedSlotDate(selectedDate);
+    setSelectedSlotTime(slot.time);
+    setIsAdvanceBookingModalOpen(true);
   };
 
   const handleBookingDelete = (bookingId: string) => {
     const dateString = selectedDate.toDateString();
-    const updatedSlots = (dateSlots[dateString] || timeSlots).map((slot) => {
+    const updatedSlots = (timeSlots).map((slot) => {
       if (slot.bookings.some((booking) => booking.id === bookingId)) {
         const updatedBookings = slot.bookings.filter(
           (booking) => booking.id !== bookingId,
@@ -202,13 +161,12 @@ const [selectedService, setSelectedService] = useState<string>("");
     });
 
     setTimeSlots(updatedSlots);
-    setDateSlots((prev) => ({ ...prev, [dateString]: updatedSlots }));
     toast.success("Booking deleted successfully!");
   };
 
   const getBookingCountForDate = (date: Date) => {
     const dateString = date.toDateString();
-    const slots = dateSlots[dateString];
+    const slots = timeSlots;
     if (!slots || slots.length === 0) return 0;
     return slots.reduce((sum, slot) => sum + (slot.bookings ? slot.bookings.length : 0), 0);
   };
@@ -239,58 +197,25 @@ const [selectedService, setSelectedService] = useState<string>("");
   const handleBookingSubmit = () => {
     if (!selectedTimeSlot) return;
 
-    if (!bookingForm.customerName || !bookingForm.customerPhone || !bookingForm.customerEmail) {
-      toast.error("Please fill in all required fields");
+    if (!slotStartTime || !slotEndTime) {
+      toast.error("Time slot details not available.");
       return;
     }
 
-    const newBooking: BookingSlot = {
-      id: `booking-${Date.now()}`,
-      customerName: bookingForm.customerName,
-      customerPhone: bookingForm.customerPhone,
-      customerEmail: bookingForm.customerEmail,
-      service: selectedService,
-      notes: bookingForm.notes,
-      duration: bookingForm.duration,
-      amount: bookingForm.amount,
-      status: "pending",
-    };
-
-    // Update the time slot for the current date
-    const dateString = selectedDate.toDateString();
-    const updatedSlots = (dateSlots[dateString] || timeSlots).map((slot) => {
-      if (slot.id === selectedTimeSlot.id) {
-        return {
-          ...slot,
-          bookings: [...slot.bookings, newBooking],
-          booked: slot.booked + 1,
-          available: slot.booked + 1 < slot.capacity,
-        };
-      }
-      return slot;
-    });
-
-    setTimeSlots(updatedSlots);
-    setDateSlots((prev) => ({ ...prev, [dateString]: updatedSlots }));
-
-    if (onBookingCreate) {
-      onBookingCreate(newBooking);
+    if (!selectedService) {
+      toast.error("Please select a service.");
+      return;
     }
 
-    // Reset form
-    setBookingForm({
-      customerName: "",
-      customerPhone: "",
-      customerEmail: "",
-      service: "",
-      notes: "",
-      duration: 30,
-      amount: 0,
-    });
-
-    setIsBookingModalOpen(false);
-    setSelectedTimeSlot(null);
-    toast.success("Booking created successfully!");
+    queueAPI.bookSlot(business._id, slotStartTime, slotEndTime, selectedService)
+      .then(booking => {
+        setIsBookingModalOpen(false);
+        if (onBookingCreate) onBookingCreate(booking);
+        toast.success("Booking created successfully!");
+      })
+      .catch(err => {
+        toast.error(`Failed to create booking: ${err.message}`);
+      });
   };
 
   const navigateMonth = (direction: "prev" | "next") => {
@@ -316,6 +241,29 @@ const [selectedService, setSelectedService] = useState<string>("");
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    const days = [];
+
+    // Add empty slots for days before the first day of the month
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, month, day));
+    }
+
+    return days;
+  };
+
   return (
     <div className="space-y-6">
       {/* Calendar Header */}
@@ -326,40 +274,6 @@ const [selectedService, setSelectedService] = useState<string>("");
               <CalendarIcon className="w-5 h-5" />
               <span>Booking Calendar</span>
             </CardTitle>
-            <div className="flex items-center space-x-2">
-              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode("month")}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                    viewMode === "month"
-                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                      : "text-gray-600 dark:text-gray-400"
-                  }`}
-                >
-                  Month
-                </button>
-                <button
-                  onClick={() => setViewMode("week")}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                    viewMode === "week"
-                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                      : "text-gray-600 dark:text-gray-400"
-                  }`}
-                >
-                  Week
-                </button>
-                <button
-                  onClick={() => setViewMode("day")}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                    viewMode === "day"
-                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                      : "text-gray-600 dark:text-gray-400"
-                  }`}
-                >
-                  Day
-                </button>
-              </div>
-            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -384,77 +298,72 @@ const [selectedService, setSelectedService] = useState<string>("");
             </Button>
           </div>
 
-          {viewMode === "month" && (
-            <>
-              {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-1 mb-4">
-                {dayNames.map((day) => (
-                  <div
-                    key={day}
-                    className="text-center text-sm font-medium text-gray-500 dark:text-gray-400 py-2"
-                  >
-                    {day}
-                  </div>
-                ))}
+          {/* Calendar Grid */}
+          <div className="grid grid-cols-7 gap-1 mb-4">
+            {dayNames.map((day) => (
+              <div
+                key={day}
+                className="text-center text-sm font-medium text-gray-500 dark:text-gray-400 py-2"
+              >
+                {day}
               </div>
-              <div className="grid grid-cols-7 gap-1">
-                {getDaysInMonth(currentDate).map((date, index) => (
-                  <motion.div
-                    key={index}
-                    whileHover={date && !(date < new Date('2025-07-22T00:00:00+05:30')) ? { scale: 1.05 } : {}}
-                    whileTap={date && !(date < new Date('2025-07-22T00:00:00+05:30')) ? { scale: 0.95 } : {}}
-                    className={`h-20 border border-gray-200 dark:border-gray-700 rounded-lg ${
-                      date
-                        ? (date < new Date('2025-07-22T00:00:00+05:30')
-                            ? "bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed pointer-events-none greyed-out"
-                            : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-                          )
-                        : ""
-                    } ${getDayClass(date)}`}
-                    onClick={() => date && !(date < new Date('2025-07-22T00:00:00+05:30')) && handleDateSelect(date)}
-                  >
-                    {date && (
-                      <div className="p-2 h-full flex flex-col">
-                        <span className="text-sm font-medium">
-                          {date.getDate()}
-                        </span>
-                        <div className="flex-1 flex items-end">
-                          <div className="w-full">
-                            {/* Only show queue number if NOT a past date */}
-                            {(() => {
-                              const today = new Date("2025-07-22T10:51:27+05:30");
-                              today.setHours(0,0,0,0);
-                              if (date >= today && getBookingCountForDate(date) > 0) {
-                                return (
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs w-full justify-center"
-                                  >
-                                    {getBookingCountForDate(date)}
-                                  </Badge>
-                                );
-                              }
-                              return null;
-                            })()}
-                          </div>
-                        </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {getDaysInMonth(currentDate).map((date, index) => (
+              <motion.div
+                key={index}
+                whileHover={date && !(date < new Date('2025-07-22T00:00:00+05:30')) ? { scale: 1.05 } : {}}
+                whileTap={date && !(date < new Date('2025-07-22T00:00:00+05:30')) ? { scale: 0.95 } : {}}
+                className={`h-20 border border-gray-200 dark:border-gray-700 rounded-lg ${
+                  date
+                    ? (date < new Date('2025-07-22T00:00:00+05:30')
+                        ? "bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed pointer-events-none greyed-out"
+                        : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      )
+                    : ""
+                } ${getDayClass(date)}`}
+                onClick={() => date && !(date < new Date('2025-07-22T00:00:00+05:30')) && handleDateSelect(date)}
+              >
+                {date && (
+                  <div className="p-2 h-full flex flex-col">
+                    <span className="text-sm font-medium">
+                      {date.getDate()}
+                    </span>
+                    <div className="flex-1 flex items-end">
+                      <div className="w-full">
+                        {/* Only show queue number if NOT a past date */}
+                        {(() => {
+                          const today = new Date("2025-07-22T10:51:27+05:30");
+                          today.setHours(0,0,0,0);
+                          if (date >= today && getBookingCountForDate(date) > 0) {
+                            return (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs w-full justify-center"
+                              >
+                                {getBookingCountForDate(date)}
+                              </Badge>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
-            </>
-          )}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
       {/* Time Slots */}
       {(() => {
-        // Use fixed current date as per system info
-        const today = new Date("2025-07-22T10:51:27+05:30");
+        const today = new Date();
         today.setHours(0,0,0,0);
         const isPast = selectedDate < today;
-        if ((viewMode === "day" || selectedDate) && !isPast) {
+        if (selectedDate && !isPast) {
           return (
             <Card>
               <CardHeader>
@@ -464,31 +373,39 @@ const [selectedService, setSelectedService] = useState<string>("");
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                  {timeSlots.map((slot) => (
-                    <motion.div
-                      key={slot.id}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                        slot.available
-                          ? "border-green-200 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30"
-                          : "border-red-200 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300"
-                      }`}
-                      onClick={() => handleTimeSlotSelect(slot)}
-                    >
-                      <div className="text-center">
-                        <div className="font-medium text-sm">{slot.time}</div>
-                        <div className="text-xs mt-1">
-                          {slot.booked}/{slot.capacity}
-                        </div>
-                        {slot.bookings.length > 0 && (
-                          <div className="flex justify-center mt-1">
-                            <Users className="w-3 h-3" />
+                  {timeSlots.map((slot) => {
+                    const [hour, minute] = slot.time.split(":").map(Number);
+                    const slotDate = new Date(selectedDate);
+                    slotDate.setHours(hour, minute, 0, 0);
+                    const isPast = slotDate < now;
+                    return (
+                      <motion.div
+                        key={slot.id}
+                        whileHover={!isPast ? { scale: 1.05 } : {}}
+                        whileTap={!isPast ? { scale: 0.95 } : {}}
+                        className={`p-3 rounded-lg border transition-all ${
+                          isPast
+                            ? "bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed pointer-events-none greyed-out border-gray-200 dark:border-gray-700"
+                            : slot.available
+                              ? "border-green-200 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 cursor-pointer"
+                              : "border-red-200 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 cursor-pointer"
+                        }`}
+                        onClick={() => !isPast && handleTimeSlotSelect(slot)}
+                      >
+                        <div className="text-center">
+                          <div className="font-medium text-sm">{slot.time}</div>
+                          <div className="text-xs mt-1">
+                            {slot.booked}/{slot.capacity}
                           </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
+                          {slot.bookings.length > 0 && (
+                            <div className="flex justify-center mt-1">
+                              <Users className="w-3 h-3" />
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -499,18 +416,20 @@ const [selectedService, setSelectedService] = useState<string>("");
 
       {/* Booking Details Modal */}
       <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
-  {business && (
-    <QueueBookingModal
-      business={business}
-      isOpen={isBookingModalOpen}
-      onClose={() => setIsBookingModalOpen(false)}
-      onSuccess={(booking) => {
-        setIsBookingModalOpen(false);
-        if (onBookingCreate) onBookingCreate(booking);
-      }}
-      onServiceSelect={(service) => setSelectedService(service)}
-    />
-  )}
+        {business && (
+          <QueueBookingModal
+            business={business}
+            isOpen={isBookingModalOpen}
+            onClose={() => setIsBookingModalOpen(false)}
+            onSuccess={(booking) => {
+              setIsBookingModalOpen(false);
+              if (onBookingCreate) onBookingCreate(booking);
+            }}
+            onServiceSelect={(service) => setSelectedService(service)}
+            startTime={slotStartTime}
+            endTime={slotEndTime}
+          />
+        )}
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -591,124 +510,6 @@ const [selectedService, setSelectedService] = useState<string>("");
                 </div>
               )}
 
-              {/* New Booking Form */}
-              {(selectedTimeSlot.available || isManagementMode) && (
-                <div className="space-y-4">
-                  <h4 className="font-medium">
-                    {isManagementMode ? "Add New Booking" : "Book Appointment"}
-                  </h4>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="customerName">Full Name</Label>
-                      <Input
-                        id="customerName"
-                        value={bookingForm.customerName}
-                        onChange={(e) =>
-                          setBookingForm({
-                            ...bookingForm,
-                            customerName: e.target.value,
-                          })
-                        }
-                        placeholder="Enter full name"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="customerPhone">Phone</Label>
-                      <Input
-                        id="customerPhone"
-                        value={bookingForm.customerPhone}
-                        onChange={(e) =>
-                          setBookingForm({
-                            ...bookingForm,
-                            customerPhone: e.target.value,
-                          })
-                        }
-                        placeholder="Phone number"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="customerEmail">Email</Label>
-                    <Input
-                      id="customerEmail"
-                      type="email"
-                      value={bookingForm.customerEmail}
-                      onChange={(e) =>
-                        setBookingForm({
-                          ...bookingForm,
-                          customerEmail: e.target.value,
-                        })
-                      }
-                      placeholder="Email address"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      
-                      
-                    </div>
-                    {isManagementMode && (
-                      <div className="space-y-2">
-                        <Label htmlFor="amount">Amount ($)</Label>
-                        <Input
-                          id="amount"
-                          type="number"
-                          value={bookingForm.amount}
-                          onChange={(e) =>
-                            setBookingForm({
-                              ...bookingForm,
-                              amount: parseFloat(e.target.value),
-                            })
-                          }
-                          min="0"
-                          step="0.01"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Notes (Optional)</Label>
-                    <Textarea
-                      id="notes"
-                      value={bookingForm.notes}
-                      onChange={(e) =>
-                        setBookingForm({
-                          ...bookingForm,
-                          notes: e.target.value,
-                        })
-                      }
-                      placeholder="Any special requirements or notes"
-                      rows={3}
-                    />
-                  </div>
-
-                  <div className="flex space-x-2">
-                    <Button
-  onClick={handleBookingSubmit}
-  disabled={
-    !bookingForm.customerName ||
-    !bookingForm.customerPhone ||
-    !bookingForm.customerEmail
-  }
-  className="flex-1"
->
-  <Plus className="w-4 h-4 mr-2" />
-  {isManagementMode ? "Add Booking" : "Book Appointment"}
-</Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsBookingModalOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
               {!selectedTimeSlot.available && !isManagementMode && (
                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -720,6 +521,15 @@ const [selectedService, setSelectedService] = useState<string>("");
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Render AdvanceBookingModal for advance booking */}
+      <AdvanceBookingModal
+        isOpen={isAdvanceBookingModalOpen}
+        onClose={() => setIsAdvanceBookingModalOpen(false)}
+        date={selectedSlotDate}
+        time={selectedSlotTime}
+        business={business}
+      />
 
       {/* Legend */}
       <Card>

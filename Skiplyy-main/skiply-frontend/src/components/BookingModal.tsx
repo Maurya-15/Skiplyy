@@ -89,7 +89,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [isOpen, preSelectedDepartmentId, user, setValue, reset]);
 
-  const handleDepartmentSelect = (departmentId: string) => {
+  const handleDepartmentSelect = async (departmentId: string) => {
     setValue("departmentId", departmentId);
     setCurrentStep("details");
   };
@@ -101,29 +101,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const handleConfirmBooking = async (data: FormData) => {
     setIsLoading(true);
     try {
+      // Fix: use 'id' for lookup
       const department = business.departments.find((d) => d.id === data.departmentId);
       if (!department) throw new Error("Department not found");
 
-      // Prepare booking data for backend
-      // Debug log to inspect the business object
-      console.log('Business object in booking:', business);
-      
-      // Safely get business ID with type assertion
-      const businessId = (business as any)._id;
-      
+      const businessId = business._id;
       if (!businessId) {
-        console.error('No business ID found in business object:', business);
         throw new Error('Business ID is missing. Cannot create booking.');
       }
       
-      // Ensure we have a string ID for the payload
-      const businessIdString = businessId.toString();
-      
       const bookingPayload = {
-        business: businessIdString,  // Will be cast to ObjectId on backend
-        businessId: businessIdString,  // Store as string for easier reference
-        businessName: business.name,
-        departmentName: department.name,
+        business: businessId,
+        businessId: businessId,
+        businessName: business.businessName || business.name,
+        departmentId: data.departmentId, // send the generated id
+        departmentName: department.name, // send the department name
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         notes: data.notes,
@@ -131,22 +123,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       };
       
       console.log('Sending booking payload:', bookingPayload);
-      console.log('Booking payload being sent:', bookingPayload);
-      // Get auth token
+      
       const token = localStorage.getItem("token");
       const res = await axios.post(
         "http://localhost:5050/api/queues/book",
         bookingPayload,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
+      
       const bookingRes = res.data;
       setBooking(bookingRes);
       setCurrentStep("success");
       toast.success("Booking confirmed successfully!");
-    } catch (error) {
-      toast.error("Booking failed. Please try again.");
+    } catch (error: any) {
+      console.error('Booking error:', error);
+      toast.error(error.response?.data?.message || "Booking failed. Please try again.");
     } finally {
       setIsLoading(false);
     }

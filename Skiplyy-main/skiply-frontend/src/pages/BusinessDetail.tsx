@@ -65,8 +65,6 @@ const BusinessDetail: React.FC = () => {
   const [business, setBusiness] = useState<any>(null);
   const [reviews, setReviews] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<any>();
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
@@ -728,54 +726,6 @@ const BusinessDetail: React.FC = () => {
                     </div>
                   </CardContent>
                 </Card>
-
-                {selectedDate && selectedDepartment && selectedTimeSlot && (
-                  <Card className="glass-strong border-0 border-primary">
-                    <CardHeader>
-                      <CardTitle className="text-lg">Booking Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Department:</span>
-                          <span className="font-medium">
-                            {
-                              business.departments.find(
-                                (d: any) => d.id === selectedDepartment
-                              )?.name
-                            }
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Date:</span>
-                          <span className="font-medium">
-                            {selectedDate.toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Time:</span>
-                          <span className="font-medium">
-                            {selectedTimeSlot.time}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Available Spots:</span>
-                          <span className="font-medium text-green-600">
-                            {selectedTimeSlot.capacity -
-                              selectedTimeSlot.booked}
-                          </span>
-                        </div>
-                      </div>
-
-                      <Button
-                        className="w-full btn-gradient"
-                        onClick={handleBookNow}
-                      >
-                        Book This Slot
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
             </div>
           </TabsContent>
@@ -945,8 +895,6 @@ const BusinessDetail: React.FC = () => {
         onClose={() => setIsBookingModalOpen(false)}
         business={business}
         preSelectedDepartmentId={selectedDepartment}
-        selectedDate={selectedDate}
-        selectedTimeSlot={selectedTimeSlot}
       />
     </div>
   );
