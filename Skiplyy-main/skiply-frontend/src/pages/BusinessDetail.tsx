@@ -58,6 +58,7 @@ import BusinessMap from "../components/BusinessMap";
 import { cn } from "../lib/utils";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import LiveQueueBooking from "../components/LiveQueueBooking";
 
 const BusinessDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -890,11 +891,10 @@ const BusinessDetail: React.FC = () => {
         </Tabs>
       </div>
 
-      <BookingModal
+      <LiveQueueBooking
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         business={business}
-        preSelectedDepartmentId={selectedDepartment}
       />
     </div>
   );

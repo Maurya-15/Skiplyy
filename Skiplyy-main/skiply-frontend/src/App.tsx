@@ -86,6 +86,15 @@ const App: React.FC = () => {
                       }
                     />
 
+                    {/* Add this route for queue-tracker/:id before /queue-tracker */}
+                    <Route
+                      path="/queue-tracker/:id"
+                      element={
+                        <ProtectedRoute allowedRoles={["user"]}>
+                          <QueueTracker />
+                        </ProtectedRoute>
+                      }
+                    />
                     <Route
                       path="/queue-tracker"
                       element={
