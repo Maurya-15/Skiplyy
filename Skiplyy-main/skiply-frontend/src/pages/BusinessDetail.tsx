@@ -86,17 +86,16 @@ const BusinessDetail: React.FC = () => {
           name: fetchedBusiness.businessName,
           description: fetchedBusiness.description || "",
           address: fetchedBusiness.address,
-          departments: fetchedBusiness.departments.map(
-            (name: string, i: number) => ({
-              id: `dept-${i}`,
-              name,
-              description: `${name} department description`,
-              currentQueueSize: Math.floor(Math.random() * 20),
-              maxQueueSize: 20,
-              estimatedWaitTime: Math.floor(Math.random() * 30) + 5,
-              price: Math.floor(Math.random() * 200) + 50,
-            })
-          ),
+          departments: Array.isArray(fetchedBusiness.departments)
+            ? fetchedBusiness.departments.map((name: string, i: number) => ({
+                id: `dept-${i}`,
+                name,
+                currentQueueSize: Math.floor(Math.random() * 20),
+                maxQueueSize: 20,
+                estimatedWaitTime: Math.floor(Math.random() * 30) + 5,
+                isActive: true,
+              }))
+            : [],
           openingHours: fetchedBusiness.openingHours,
           contact: {
             phone: "123-456-7890",
@@ -451,7 +450,7 @@ const BusinessDetail: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
+        </div> 
       </div>
 
       {/* Main Content */}
