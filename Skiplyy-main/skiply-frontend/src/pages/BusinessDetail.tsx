@@ -52,7 +52,7 @@ import { StarRating } from "../components/Reviews/StarRating";
 import { ReviewCard } from "../components/Reviews/ReviewCard";
 import { PhotoGallery } from "../components/PhotoGallery/PhotoGallery";
 import BookingCalendar from "../components/Calendar/BookingCalendar";
-import { BookingModal } from "../components/BookingModal";
+import { AdvanceBookingModal } from "../components/Calendar/AdvanceBookingModal";
 import { AnalyticsChart } from "../components/Charts/AnalyticsChart";
 import BusinessMap from "../components/BusinessMap";
 import { cn } from "../lib/utils";
@@ -67,6 +67,7 @@ const BusinessDetail: React.FC = () => {
   const [reviews, setReviews] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+const [isAdvanceBooking, setIsAdvanceBooking] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [imageError, setImageError] = useState(false);
@@ -216,11 +217,23 @@ const BusinessDetail: React.FC = () => {
     }
   };
 
+  // Handler for live queue booking
   const handleBookNow = () => {
     if (!user) {
       toast.error("Please log in to book an appointment");
       return;
     }
+    setIsAdvanceBooking(false);
+    setIsBookingModalOpen(true);
+  };
+
+  // Handler for advance booking
+  const handleAdvanceBook = () => {
+    if (!user) {
+      toast.error("Please log in to book an appointment");
+      return;
+    }
+    setIsAdvanceBooking(true);
     setIsBookingModalOpen(true);
   };
 
@@ -446,7 +459,11 @@ const BusinessDetail: React.FC = () => {
 
               <Button className="btn-gradient" onClick={handleBookNow}>
                 <Calendar className="w-4 h-4 mr-2" />
-                Book Now
+                Book Now (Live)
+              </Button>
+              <Button className="ml-2" variant="outline" onClick={handleAdvanceBook}>
+                <Calendar className="w-4 h-4 mr-2" />
+                Advance Booking
               </Button>
             </div>
           </div>
@@ -890,11 +907,20 @@ const BusinessDetail: React.FC = () => {
         </Tabs>
       </div>
 
-      <LiveQueueBooking
-        isOpen={isBookingModalOpen}
-        onClose={() => setIsBookingModalOpen(false)}
-        business={business}
-      />
+      {/* Show only one modal at a time based on isAdvanceBooking */}
+      {isAdvanceBooking ? (
+        <AdvanceBookingModal
+          isOpen={isBookingModalOpen}
+          onClose={() => setIsBookingModalOpen(false)}
+          business={business}
+        />
+      ) : (
+        <LiveQueueBooking
+          isOpen={isBookingModalOpen}
+          onClose={() => setIsBookingModalOpen(false)}
+          business={business}
+        />
+      )}
     </div>
   );
 };

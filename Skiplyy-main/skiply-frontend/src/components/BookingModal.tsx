@@ -25,6 +25,7 @@ const bookingSchema = z.object({
   departmentId: z.string().min(1, "Please select a department"),
   customerName: z.string().min(2, "Name must be at least 2 characters"),
   customerPhone: z.string().min(10, "Please enter a valid phone number"),
+  customerEmail: z.string().email("Please enter a valid email address"),
   notes: z.string().optional(),
 });
 
@@ -63,6 +64,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       departmentId: preSelectedDepartmentId || "",
       customerName: user?.name || "",
       customerPhone: user?.phone || "",
+      customerEmail: user?.email || "",
       notes: "",
     },
   });
@@ -101,11 +103,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const handleConfirmBooking = async (data: FormData) => {
     setIsLoading(true);
     try {
-      // Fix: use 'id' for lookup
+      // Use 'id' for lookup, fallback to _id for legacy
       const department = business.departments.find((d) => d.id === data.departmentId);
       if (!department) throw new Error("Department not found");
 
-      const businessId = business._id;
+      const businessId = business.id || business._id;
       if (!businessId) {
         throw new Error('Business ID is missing. Cannot create booking.');
       }
@@ -113,11 +115,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       const bookingPayload = {
         business: businessId,
         businessId: businessId,
-        businessName: business.businessName || business.name,
-        departmentId: data.departmentId, // send the generated id
-        departmentName: department.name, // send the department name
+        businessName: business.name || business.businessName,
+        departmentId: data.departmentId,
+        departmentName: department.name,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail,
         notes: data.notes,
         bookedAt: new Date().toISOString(),
       };
@@ -402,19 +405,34 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Additional Notes (Optional)
-                      </label>
-                      <div className="relative">
-                        <MessageSquare className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
-                        <textarea
-                          {...register("notes")}
-                          rows={3}
-                          className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                          placeholder="Any special requests or additional information..."
-                        />
-                      </div>
-                    </div>
+  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+    Email Address
+  </label>
+  <div className="relative">
+    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+    <input
+      {...register("customerEmail")}
+      type="email"
+      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+      placeholder="Enter your email address"
+      required
+    />
+  </div>
+</div>
+<div>
+  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+    Additional Notes (Optional)
+  </label>
+  <div className="relative">
+    <MessageSquare className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+    <textarea
+      {...register("notes")}
+      rows={3}
+      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+      placeholder="Any special requests or additional information..."
+    />
+  </div>
+</div>
                   </div>
 
                   <button
@@ -532,45 +550,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                       </>
                     )}
                   </button>
-                </motion.div>
-              )}
-
-              {/* Step 4: Success */}
-              {currentStep === "success" && booking && (
-                <motion.div
-                  key="success"
-                  variants={stepVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className="text-center space-y-6"
-                >
-                  <CheckCircle className="mx-auto w-16 h-16 text-green-500 mb-4" />
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                    Booking Confirmed!
-                  </h3>
-                  <p className="text-gray-700 dark:text-gray-300 mb-4">
-                    Your spot has been reserved successfully
-                  </p>
-                  <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-6 mb-4">
-                    <span className="block text-3xl font-bold text-green-600 mb-2">
-                      Token #{booking.tokenNumber || booking._id}
-                    </span>
-                    <span className="block text-gray-600 dark:text-gray-400">
-                      Estimated wait time: {booking.estimatedWaitTime || 10} minutes
-                    </span>
-                    <span className="block text-gray-500 dark:text-gray-500 text-sm mt-1">
-                      Booked at: {new Date(booking.createdAt || Date.now()).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  {/* QR Code Section */}
-                  <div className="flex flex-col items-center justify-center mb-4">
-                    <span className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Your QR Code</span>
-                    <div className="bg-white p-4 rounded-lg shadow border inline-block">
-                      <QRCode value={booking.qrCode || booking._id || "skiplyy"} size={160} />
-                    </div>
-                    <span className="text-xs text-gray-500 mt-2">Scan this at the business location</span>
-                  </div>
                   <button
                     type="button"
                     className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-200 mb-4"

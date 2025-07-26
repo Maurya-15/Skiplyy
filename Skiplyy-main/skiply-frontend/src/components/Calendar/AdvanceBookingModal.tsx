@@ -91,11 +91,9 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
 
   const { user } = useAuth();
   // If there is only one department, or a department is preselected, skip to details step
-  const autoDepartment = safeBusiness?.departments && safeBusiness.departments.length === 1 ? safeBusiness.departments[0] : null;
+  const autoDepartment = safeBusiness?.departments && safeBusiness.departments.length > 0 ? safeBusiness.departments[0] : null;
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(autoDepartment);
-  const [step, setStep] = useState<"departments" | "details" | "confirm" | "success">(
-    autoDepartment ? "details" : "departments"
-  );
+  const [step, setStep] = useState<"details" | "confirm" | "success">("details");
 
   const [bookingData, setBookingData] = useState<BookingData>({
     departmentId: "",
@@ -107,12 +105,6 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
     time: time || undefined,
   });
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleDepartmentSelect = (dept: Department) => {
-    setSelectedDepartment(dept);
-    setBookingData(prev => ({ ...prev, departmentId: dept.id }));
-    setStep("details");
-  };
 
   const handleDetailsSubmit = () => {
     if (!bookingData.customerName || !bookingData.customerPhone) {
@@ -163,10 +155,10 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
   };
 
   const resetBooking = () => {
-    setStep("departments");
-    setSelectedDepartment(null);
+    setStep("details");
+    setSelectedDepartment(autoDepartment);
     setBookingData({
-      departmentId: "",
+      departmentId: autoDepartment?.id || "",
       customerName: user?.name || "",
       customerPhone: user?.phone || '',
       customerEmail: user?.email,
@@ -188,7 +180,7 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
           <DialogTitle>Book an Appointment</DialogTitle>
         </DialogHeader>
         <div className="flex justify-between items-center mb-6">
-          {["departments", "details", "confirm", "success"].map((s, idx) => (
+          {["details", "confirm", "success"].map((s, idx) => (
             <div key={s} className="flex items-center">
               <div
                 className={`w-8 h-8 flex items-center justify-center rounded-full border-2 font-bold transition-colors duration-200 ` +
@@ -199,49 +191,16 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
               >
                 {idx + 1}
               </div>
-              {idx < 3 && <div className="w-8 h-1 bg-gray-300 mx-1 rounded" />}
+              {idx < 2 && <div className="w-8 h-1 bg-gray-300 mx-1 rounded" />}
             </div>
           ))}
         </div>
-
-        {/* Step: Department Selection */}
-        {step === "departments" && (
-          <div className="space-y-4">
-            <h3 className="font-medium mb-3">Select a Department/Service</h3>
-            <div className="space-y-2">
-              {(business?.departments || []).map((dept) => (
-                <button
-                  key={dept.id}
-                  onClick={() => handleDepartmentSelect(dept)}
-                  className="w-full p-3 text-left border rounded-lg hover:bg-accent transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium">{dept.name}</h4>
-                      <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-1">
-                        <span className="flex items-center space-x-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{dept.estimatedWaitTime} min wait</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <Users className="w-3 h-3" />
-                          <span>{dept.currentQueueSize}/{dept.maxQueueSize} in queue</span>
-                        </span>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Step: User Details */}
         {step === "details" && selectedDepartment && (
           <div className="space-y-4">
             <div className="flex items-center space-x-2 text-sm">
-              <Button variant="ghost" size="sm" onClick={() => setStep('departments')} className="p-0 h-auto">
+              <Button variant="ghost" size="sm" onClick={() => setStep("details")} className="p-0 h-auto">
                 <ArrowLeft className="w-4 h-4 mr-1" /> Back
               </Button>
               <span className="text-muted-foreground">•</span>
@@ -267,13 +226,23 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
                 />
               </div>
               <div>
-                <label className="block font-medium mb-1">Additional Notes (Optional)</label>
-                <Textarea
-                  placeholder="Any additional information or special requests..."
-                  value={bookingData.notes}
-                  onChange={e => setBookingData(f => ({ ...f, notes: e.target.value }))}
-                />
-              </div>
+  <label className="block font-medium mb-1">Email Address</label>
+  <Input
+    required
+    type="email"
+    placeholder="Enter your email address"
+    value={bookingData.customerEmail || ''}
+    onChange={e => setBookingData(f => ({ ...f, customerEmail: e.target.value }))}
+  />
+</div>
+<div>
+  <label className="block font-medium mb-1">Additional Notes (Optional)</label>
+  <Textarea
+    placeholder="Any additional information or special requests..."
+    value={bookingData.notes}
+    onChange={e => setBookingData(f => ({ ...f, notes: e.target.value }))}
+  />
+</div>
               <Button type="submit" className="w-full">
                 Continue to Confirmation <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -339,6 +308,12 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
             <h3 className="font-semibold text-lg">Booking Confirmed!</h3>
             <div className="text-center text-muted-foreground">
               Your booking for <span className="font-medium">{selectedDepartment?.name}</span> on <span className="font-medium">{date ? date.toLocaleDateString() : "N/A"}</span> at <span className="font-medium">{time || "N/A"}</span> is confirmed.
+            </div>
+            <div className="flex flex-col items-center gap-2 mt-2 bg-muted/50 p-4 rounded-lg">
+              <span className="text-sm text-muted-foreground">Token Number</span>
+              <span className="text-2xl font-bold text-primary">{bookingData.tokenNumber ? `#${bookingData.tokenNumber}` : '-'}</span>
+              <span className="text-sm text-muted-foreground">Estimated Wait</span>
+              <span className="font-medium">{bookingData.estimatedWaitTime ? `~${bookingData.estimatedWaitTime} min` : '-'}</span>
             </div>
             <Button className="mt-4" onClick={handleClose}>
               Close
