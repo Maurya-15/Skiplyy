@@ -58,6 +58,9 @@ interface BookingData {
   estimatedWaitTime?: number;
   bookingId?: string;
   qrCode?: string;
+  bookedAt?: string;
+  businessName?: string;
+  departmentName?: string;
 }
 
 const LiveQueueBooking: React.FC<LiveQueueBookingProps> = ({
@@ -72,7 +75,7 @@ const LiveQueueBooking: React.FC<LiveQueueBookingProps> = ({
   const [bookingData, setBookingData] = useState<BookingData>({
     departmentId: "",
     customerName: user?.name || "",
-    customerPhone: user?.phone || "",
+    customerPhone: "",
     customerEmail: user?.email || "",
     notes: "",
   });
@@ -102,6 +105,14 @@ const LiveQueueBooking: React.FC<LiveQueueBookingProps> = ({
       toast.error("Please fill in all required fields");
       return;
     }
+    
+    // Validate phone number is exactly 10 digits
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(bookingData.customerPhone)) {
+      toast.error("Phone number must be exactly 10 digits");
+      return;
+    }
+    
     setCurrentStep("confirm");
   };
 
@@ -111,35 +122,82 @@ const LiveQueueBooking: React.FC<LiveQueueBookingProps> = ({
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
+      
+      // Debug: Log the business object to see what we have
+      console.log("Business object:", business);
+      console.log("Business ID:", business.id);
+      console.log("Business _id:", (business as any)._id);
+      
+      // Use business._id as fallback if business.id is not available
+      const businessId = business.id || (business as any)._id;
+      
+      if (!businessId) {
+        console.error("No business ID found in business object:", business);
+        toast.error("Business ID not found. Please try again.");
+        return;
+      }
+      
+      // Debug: Log what we're sending
+      const bookingPayload = {
+        businessId: businessId,
+        businessName: business.name,
+        departmentName: selectedDepartment.name,
+        customerName: bookingData.customerName,
+        customerPhone: bookingData.customerPhone,
+        notes: bookingData.notes,
+        bookedAt: new Date().toISOString(),
+      };
+      
+      console.log("Sending booking payload:", bookingPayload);
+      
       const res = await fetch("http://localhost:5050/api/queues/book", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          businessId: business._id || business.id, // Support both _id and id
-          businessName: business.name,
-          departmentName: selectedDepartment.name,
-          customerName: bookingData.customerName,
-          customerPhone: bookingData.customerPhone,
-          notes: bookingData.notes,
-          bookedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify(bookingPayload),
       });
-      if (!res.ok) throw new Error("Failed to create booking");
+      
+      console.log("Response status:", res.status);
+      console.log("Response headers:", res.headers);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Booking failed with status:", res.status);
+        console.error("Error response:", errorText);
+        throw new Error(`Booking failed: ${res.status} - ${errorText}`);
+      }
+      
       const booking = await res.json();
+      console.log("Booking response:", booking); // Debug log
+      
+      // Generate QR code data using the booking response
+      const qrData = JSON.stringify({
+        bookingId: booking._id,
+        tokenNumber: booking._id, // Use booking ID as token since backend doesn't provide tokenNumber
+        businessName: booking.businessName,
+        departmentName: booking.departmentName,
+        customerName: booking.customerName,
+        date: booking.bookedAt,
+        time: new Date(booking.bookedAt).toLocaleTimeString(),
+      });
+      
       setBookingData(prev => ({
         ...prev,
-        tokenNumber: booking.tokenNumber || booking.token || 1,
+        tokenNumber: 1, // Default to 1 since backend doesn't provide tokenNumber
         estimatedWaitTime: selectedDepartment.estimatedWaitTime,
         bookingId: booking._id,
-        qrCode: booking.qrCode,
+        qrCode: qrData,
+        bookedAt: booking.bookedAt,
+        businessName: booking.businessName,
+        departmentName: booking.departmentName,
       }));
       setCurrentStep("success");
       toast.success("Your booking has been confirmed!");
     } catch (error) {
-      toast.error("Booking failed. Please try again.");
+      console.error("Booking error:", error);
+      toast.error(`Booking failed: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +209,7 @@ const LiveQueueBooking: React.FC<LiveQueueBookingProps> = ({
     setBookingData({
       departmentId: "",
       customerName: user?.name || "",
-      customerPhone: user?.phone || "",
+      customerPhone: "",
       customerEmail: user?.email || "",
       notes: "",
     });
@@ -424,11 +482,23 @@ const LiveQueueBooking: React.FC<LiveQueueBookingProps> = ({
                     <Label htmlFor="customerPhone">Phone Number *</Label>
                     <Input
                       id="customerPhone"
+                      type="tel"
                       value={bookingData.customerPhone}
-                      onChange={(e) => setBookingData(prev => ({ ...prev, customerPhone: e.target.value }))}
-                      placeholder="Enter your phone number"
+                      onChange={(e) => {
+                        // Only allow digits
+                        const value = e.target.value.replace(/\D/g, '');
+                        // Limit to 10 digits
+                        if (value.length <= 10) {
+                          setBookingData(prev => ({ ...prev, customerPhone: value }));
+                        }
+                      }}
+                      placeholder="Enter 10-digit phone number"
+                      maxLength={10}
                       className="mt-1"
                     />
+                    {bookingData.customerPhone && bookingData.customerPhone.length !== 10 && (
+                      <p className="text-sm text-red-500 mt-1">Phone number must be exactly 10 digits</p>
+                    )}
                   </div>
 
                   <div>
@@ -580,8 +650,8 @@ const LiveQueueBooking: React.FC<LiveQueueBookingProps> = ({
                   </div>
                   <div className="space-y-1 text-sm text-muted-foreground">
                     <div>Estimated wait time: {bookingData.estimatedWaitTime} minutes</div>
-                    <div>Booked at: {new Date().toLocaleTimeString()}</div>
-                    <div>Department: {selectedDepartment?.name}</div>
+                    <div>Booked at: {bookingData.bookedAt ? new Date(bookingData.bookedAt).toLocaleTimeString() : new Date().toLocaleTimeString()}</div>
+                    <div>Department: {bookingData.departmentName || selectedDepartment?.name}</div>
                   </div>
                   {bookingData.qrCode && (
                     <div className="mt-6 flex flex-col items-center">

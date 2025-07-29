@@ -1,6 +1,6 @@
 .calendar-day.greyed-out {
   background-color: #f3f4f6 !important; /* Tailwind gray-100 */
-  color: #a1a1aa !important; /* Tailwind gray-400, lighter for text */
+  color: #6b7280 !important; /* Tailwind gray-500, darker for better visibility */
   cursor: not-allowed !important;
   pointer-events: none !important;
   opacity: 1;
@@ -10,7 +10,7 @@
 @media (prefers-color-scheme: dark) {
   .calendar-day.greyed-out {
     background-color: #374151 !important; /* Tailwind gray-700 */
-    color: #6b7280 !important; /* Tailwind gray-400 */
+    color: #d1d5db !important; /* Tailwind gray-300, lighter for dark mode */
     border-color: #4b5563 !important; /* Tailwind gray-600 */
   }
 }

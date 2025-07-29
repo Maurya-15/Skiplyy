@@ -85,10 +85,57 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
   const [slotEndTime, setSlotEndTime] = useState<string | undefined>(undefined);
   const [selectedService, setSelectedService] = useState<string>("");
   const [now, setNow] = useState(new Date());
-  const [dateSlots, setDateSlots] = useState<{ [key: string]: TimeSlot[] }>({});
+  const [dateSlots, setDateSlots] = useState<{ [key: string]: TimeSlot[] }>(() => {
+    // Load date slots from localStorage on component mount
+    const saved = localStorage.getItem('dateSlots');
+    if (saved) {
+      const slots = JSON.parse(saved);
+      // Filter out slots older than 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const filteredSlots: { [key: string]: TimeSlot[] } = {};
+      
+      Object.keys(slots).forEach(dateString => {
+        const date = new Date(dateString);
+        if (date >= sevenDaysAgo) {
+          filteredSlots[dateString] = slots[dateString];
+        }
+      });
+      
+      // Update localStorage with filtered slots
+      localStorage.setItem('dateSlots', JSON.stringify(filteredSlots));
+      return filteredSlots;
+    }
+    return {};
+  });
   const [isAdvanceBookingModalOpen, setIsAdvanceBookingModalOpen] = useState(false);
   const [selectedSlotDate, setSelectedSlotDate] = useState<Date | null>(null);
   const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
+  const [recentBookings, setRecentBookings] = useState<Array<{
+    id: string;
+    tokenNumber: number;
+    date: string;
+    time: string;
+    departmentName: string;
+    customerName: string;
+  }>>(() => {
+    // Load recent bookings from localStorage on component mount
+    const saved = localStorage.getItem('recentBookings');
+    if (saved) {
+      const bookings = JSON.parse(saved);
+      // Filter out bookings older than 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const filteredBookings = bookings.filter((booking: any) => {
+        const bookingDate = new Date(booking.date);
+        return bookingDate >= sevenDaysAgo;
+      });
+      // Update localStorage with filtered bookings
+      localStorage.setItem('recentBookings', JSON.stringify(filteredBookings));
+      return filteredBookings;
+    }
+    return [];
+  });
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -138,9 +185,78 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
   };
 
   const handleTimeSlotSelect = (slot: TimeSlot) => {
+    // Check if slot is full
+    if (slot.booked >= slot.capacity) {
+      toast.error(`This time slot (${slot.time}) is fully booked. Please select another time.`);
+      return;
+    }
+    
     setSelectedSlotDate(selectedDate);
     setSelectedSlotTime(slot.time);
     setIsAdvanceBookingModalOpen(true);
+  };
+
+  const handleSuccessfulBooking = (bookingData: {
+    bookingId: string;
+    tokenNumber: number;
+    date: string;
+    time: string;
+    departmentName: string;
+    customerName: string;
+  }) => {
+    console.log('handleSuccessfulBooking called with:', bookingData);
+    
+    // Update recent bookings
+    const updatedBookings = [bookingData, ...recentBookings.slice(0, 2)]; // Keep only last 3 bookings
+    setRecentBookings(updatedBookings);
+    
+    // Save to localStorage
+    localStorage.setItem('recentBookings', JSON.stringify(updatedBookings));
+    
+    // Update time slots to reflect the new booking
+    const updatedSlots = timeSlots.map(slot => {
+      if (slot.time === bookingData.time) {
+        console.log(`Updating slot ${slot.time} with new booking`);
+        const newBooking: BookingSlot = {
+          id: bookingData.bookingId,
+          customerName: bookingData.customerName,
+          customerPhone: "", // Will be filled from the booking data
+          customerEmail: "", // Will be filled from the booking data
+          service: bookingData.departmentName,
+          notes: "",
+          status: "confirmed",
+          duration: 30, // Default duration
+        };
+        
+        const updatedBookings = [...slot.bookings, newBooking];
+        const updatedSlot = {
+          ...slot,
+          bookings: updatedBookings,
+          booked: updatedBookings.length,
+          available: updatedBookings.length < slot.capacity,
+        };
+        console.log(`Updated slot:`, updatedSlot);
+        return updatedSlot;
+      }
+      return slot;
+    });
+    
+    console.log('Updated slots:', updatedSlots);
+    setTimeSlots(updatedSlots);
+    
+    // Update date slots to persist the change
+    const dateString = selectedDate.toDateString();
+    const updatedDateSlots = {
+      ...dateSlots,
+      [dateString]: updatedSlots
+    };
+    setDateSlots(updatedDateSlots);
+    
+    // Save to localStorage
+    localStorage.setItem('dateSlots', JSON.stringify(updatedDateSlots));
+    
+    setIsAdvanceBookingModalOpen(false);
+    toast.success(`Booking confirmed! Token #${bookingData.tokenNumber}`);
   };
 
   const handleBookingDelete = (bookingId: string) => {
@@ -166,9 +282,11 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
   const getBookingCountForDate = (date: Date) => {
     const dateString = date.toDateString();
-    const slots = timeSlots;
+    const slots = dateSlots[dateString] || [];
     if (!slots || slots.length === 0) return 0;
-    return slots.reduce((sum, slot) => sum + (slot.bookings ? slot.bookings.length : 0), 0);
+    const totalBookings = slots.reduce((sum, slot) => sum + (slot.bookings ? slot.bookings.length : 0), 0);
+    console.log(`Booking count for ${dateString}:`, totalBookings, 'slots:', slots.length);
+    return totalBookings;
   };
 
   const getDayClass = (date: Date | null) => {
@@ -266,6 +384,47 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Recent Bookings Display */}
+      {recentBookings.length > 0 && (
+        <Card className="bg-green-50 dark:bg-green-900/20 border-green-200">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-green-700 dark:text-green-300">
+              <CheckCircle className="w-5 h-5" />
+              <span>Recent Bookings</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentBookings.map((booking) => (
+                <motion.div
+                  key={booking.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-green-200"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                      <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                        #{booking.tokenNumber}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="font-medium">{booking.customerName}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {booking.departmentName} • {new Date(booking.date).toLocaleDateString()} at {booking.time}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                    Confirmed
+                  </Badge>
+                </motion.div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Calendar Header */}
       <Card>
         <CardHeader>
@@ -310,7 +469,9 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
             ))}
           </div>
           <div className="grid grid-cols-7 gap-1">
-            {getDaysInMonth(currentDate).map((date, index) => (
+            {getDaysInMonth(currentDate).map((date, index) => {
+              console.log(`Calendar day ${index}:`, date, date ? date.getDate() : 'null');
+              return (
               <motion.div
                 key={index}
                 whileHover={date && !(date < new Date('2025-07-22T00:00:00+05:30')) ? { scale: 1.05 } : {}}
@@ -318,7 +479,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                 className={`h-20 border border-gray-200 dark:border-gray-700 rounded-lg ${
                   date
                     ? (date < new Date('2025-07-22T00:00:00+05:30')
-                        ? "bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed pointer-events-none greyed-out"
+                        ? "bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 cursor-not-allowed pointer-events-none greyed-out"
                         : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                       )
                     : ""
@@ -327,7 +488,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
               >
                 {date && (
                   <div className="p-2 h-full flex flex-col">
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium text-foreground dark:text-white">
                       {date.getDate()}
                     </span>
                     <div className="flex-1 flex items-end">
@@ -353,7 +514,8 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                   </div>
                 )}
               </motion.div>
-            ))}
+            );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -378,17 +540,20 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
                     const slotDate = new Date(selectedDate);
                     slotDate.setHours(hour, minute, 0, 0);
                     const isPast = slotDate < now;
+                    const isFull = slot.booked >= slot.capacity;
                     return (
                       <motion.div
                         key={slot.id}
-                        whileHover={!isPast ? { scale: 1.05 } : {}}
-                        whileTap={!isPast ? { scale: 0.95 } : {}}
+                        whileHover={!isPast && !isFull ? { scale: 1.05 } : {}}
+                        whileTap={!isPast && !isFull ? { scale: 0.95 } : {}}
                         className={`p-3 rounded-lg border transition-all ${
                           isPast
                             ? "bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed pointer-events-none greyed-out border-gray-200 dark:border-gray-700"
-                            : slot.available
-                              ? "border-green-200 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 cursor-pointer"
-                              : "border-red-200 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 cursor-pointer"
+                            : isFull
+                              ? "border-red-200 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 cursor-pointer"
+                              : slot.available
+                                ? "border-green-200 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 cursor-pointer"
+                                : "border-red-200 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 cursor-pointer"
                         }`}
                         onClick={() => !isPast && handleTimeSlotSelect(slot)}
                       >
@@ -529,6 +694,7 @@ const BookingCalendar: React.FC<BookingCalendarProps> = ({
         date={selectedSlotDate}
         time={selectedSlotTime}
         business={business}
+        onSuccessfulBooking={handleSuccessfulBooking}
       />
 
       {/* Legend */}

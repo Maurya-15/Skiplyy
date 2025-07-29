@@ -233,8 +233,7 @@ const [isAdvanceBooking, setIsAdvanceBooking] = useState(false);
       toast.error("Please log in to book an appointment");
       return;
     }
-    setIsAdvanceBooking(true);
-    setIsBookingModalOpen(true);
+    setActiveTab("queue");
   };
 
   const handleCall = () => {
@@ -477,9 +476,8 @@ const [isAdvanceBooking, setIsAdvanceBooking] = useState(false);
           onValueChange={setActiveTab}
           className="space-y-6"
         >
-          <TabsList className="grid w-full grid-cols-5 glass">
+          <TabsList className="grid w-full grid-cols-4 glass">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="queue">Queue & Booking</TabsTrigger>
             <TabsTrigger value="reviews">Reviews</TabsTrigger>
             <TabsTrigger value="photos">Photos</TabsTrigger>
             <TabsTrigger value="info">Info</TabsTrigger>
@@ -711,7 +709,7 @@ const [isAdvanceBooking, setIsAdvanceBooking] = useState(false);
 
           <TabsContent value="queue" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <BookingCalendar businessId={business.id} />
+              <BookingCalendar business={business} />
 
               <div className="space-y-6">
                 <Card className="glass-strong border-0">

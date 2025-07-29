@@ -11,7 +11,6 @@ import {
   Calendar as CalendarIcon,
   MapPin,
   DollarSign,
-  Activity,
   TrendingUp,
   ArrowRight,
   ArrowLeft,
@@ -56,6 +55,14 @@ interface AdvanceBookingModalProps {
   business?: any;
   date?: Date | null;
   time?: string | null;
+  onSuccessfulBooking?: (bookingData: {
+    bookingId: string;
+    tokenNumber: number;
+    date: string;
+    time: string;
+    departmentName: string;
+    customerName: string;
+  }) => void;
 }
 
 interface BookingData {
@@ -70,9 +77,18 @@ interface BookingData {
   estimatedWaitTime?: number;
   bookingId?: string;
   qrCode?: string;
+  bookedAt?: string;
+  businessName?: string;
+  departmentName?: string;
 }
 
-const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClose, business, date, time }): JSX.Element => {
+const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClose, business, date, time, onSuccessfulBooking }): JSX.Element => {
+  // Debug: Log the business object to understand its structure
+  console.log("AdvanceBookingModal - Business object:", business);
+  console.log("AdvanceBookingModal - Business ID:", business?._id);
+  console.log("AdvanceBookingModal - Business name:", business?.name);
+  console.log("AdvanceBookingModal - Business businessName:", business?.businessName);
+  
   // Defensive fallback: ensure departments is always an array of objects
   let safeBusiness = business;
   if (business && Array.isArray(business.departments) && typeof business.departments[0] === 'string') {
@@ -90,15 +106,29 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
   }
 
   const { user } = useAuth();
-  // If there is only one department, or a department is preselected, skip to details step
-  const autoDepartment = safeBusiness?.departments && safeBusiness.departments.length > 0 ? safeBusiness.departments[0] : null;
+  
+  // Create a default department if none exists
+  const defaultDepartment: Department = {
+    id: "default",
+    name: "General Service",
+    currentQueueSize: 0,
+    maxQueueSize: 20,
+    estimatedWaitTime: 10,
+    isActive: true,
+  };
+  
+  // Use the first available department or default
+  const autoDepartment = safeBusiness?.departments && safeBusiness.departments.length > 0 
+    ? safeBusiness.departments[0] 
+    : defaultDepartment;
+    
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(autoDepartment);
   const [step, setStep] = useState<"details" | "confirm" | "success">("details");
 
   const [bookingData, setBookingData] = useState<BookingData>({
     departmentId: "",
     customerName: user?.name || "",
-    customerPhone: user?.phone || '',
+          customerPhone: "",
     customerEmail: user?.email,
     notes: "",
     date: date ? date.toISOString() : undefined,
@@ -111,14 +141,44 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
       toast.error("Please fill in all required fields");
       return;
     }
+    
+    // Validate phone number is exactly 10 digits
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(bookingData.customerPhone)) {
+      toast.error("Phone number must be exactly 10 digits");
+      return;
+    }
+    
     setStep("confirm");
   };
 
   const handleConfirmBooking = async () => {
-    if (!selectedDepartment || !user) return;
+    if (!user) return;
+    
+    // Check if business exists
+    if (!business) {
+      toast.error("Business information not available. Please try again.");
+      return;
+    }
+    
+    // Use default department if none selected
+    const department = selectedDepartment || {
+      id: "default",
+      name: "General Service",
+      estimatedWaitTime: 10,
+    };
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
+      
+      // Get business ID with fallbacks
+      const businessId = business._id || business.id || (business as any)._id;
+      const businessName = business.businessName || business.name || "Unknown Business";
+      
+      console.log("Business object:", business);
+      console.log("Business ID:", businessId);
+      console.log("Business Name:", businessName);
+      
       const res = await fetch("http://localhost:5050/api/queues/book", {
         method: "POST",
         headers: {
@@ -126,9 +186,9 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          businessId: business._id || business.id,
-          businessName: business.businessName || business.name,
-          departmentName: selectedDepartment.name,
+          businessId: businessId,
+          businessName: businessName,
+          departmentName: department.name,
           customerName: bookingData.customerName,
           customerPhone: bookingData.customerPhone,
           notes: bookingData.notes,
@@ -136,19 +196,63 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
           time: time || undefined,
         }),
       });
-      if (!res.ok) throw new Error("Failed to create booking");
+      
+      console.log("Response status:", res.status);
+      console.log("Response headers:", res.headers);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Booking failed with status:", res.status);
+        console.error("Error response:", errorText);
+        throw new Error(`Booking failed: ${res.status} - ${errorText}`);
+      }
+      
       const booking = await res.json();
+      
+      console.log("Booking response:", booking); // Debug log
+      
+      // Generate QR code data using the booking response
+      const qrData = JSON.stringify({
+        bookingId: booking._id,
+        tokenNumber: booking._id, // Use booking ID as token since backend doesn't provide tokenNumber
+        businessName: booking.businessName,
+        departmentName: booking.departmentName,
+        customerName: booking.customerName,
+        date: booking.bookedAt,
+        time: new Date(booking.bookedAt).toLocaleTimeString(),
+      });
+      
+      // Update booking data with the actual response from server
       setBookingData(prev => ({
         ...prev,
-        tokenNumber: booking.tokenNumber || booking.token || 1,
-        estimatedWaitTime: selectedDepartment.estimatedWaitTime,
+        tokenNumber: 1, // Default to 1 since backend doesn't provide tokenNumber
+        estimatedWaitTime: department.estimatedWaitTime,
         bookingId: booking._id,
-        qrCode: booking.qrCode,
+        qrCode: qrData,
+        // Store the actual booking response for display
+        bookedAt: booking.bookedAt,
+        businessName: booking.businessName,
+        departmentName: booking.departmentName,
       }));
+      
+      // Call the success handler if provided
+      if (onSuccessfulBooking) {
+        onSuccessfulBooking({
+          bookingId: booking._id,
+          tokenNumber: bookingData.tokenNumber || 1,
+          date: date ? date.toISOString() : new Date().toISOString(),
+          time: time || new Date().toLocaleTimeString(),
+          departmentName: bookingData.departmentName || selectedDepartment?.name || "General Service",
+          customerName: bookingData.customerName,
+        });
+      }
+      
       setStep("success");
       toast.success("Your booking has been confirmed!");
     } catch (error) {
-      toast.error("Booking failed. Please try again.");
+      console.error("Booking error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Booking failed. Please try again.";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -160,7 +264,7 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
     setBookingData({
       departmentId: autoDepartment?.id || "",
       customerName: user?.name || "",
-      customerPhone: user?.phone || '',
+      customerPhone: "",
       customerEmail: user?.email,
       notes: "",
       date: date ? date.toISOString() : undefined,
@@ -197,14 +301,14 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
         </div>
 
         {/* Step: User Details */}
-        {step === "details" && selectedDepartment && (
+        {step === "details" && (
           <div className="space-y-4">
             <div className="flex items-center space-x-2 text-sm">
               <Button variant="ghost" size="sm" onClick={() => setStep("details")} className="p-0 h-auto">
                 <ArrowLeft className="w-4 h-4 mr-1" /> Back
               </Button>
               <span className="text-muted-foreground">•</span>
-              <span className="font-medium">{selectedDepartment.name}</span>
+              <span className="font-medium">{selectedDepartment?.name || "General Service"}</span>
             </div>
             <form onSubmit={e => { e.preventDefault(); handleDetailsSubmit(); }} className="space-y-4">
               <div>
@@ -220,10 +324,22 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
                 <label className="block font-medium mb-1">Phone Number</label>
                 <Input
                   required
-                  placeholder="Enter your phone number"
+                  type="tel"
+                  placeholder="Enter 10-digit phone number"
                   value={bookingData.customerPhone}
-                  onChange={e => setBookingData(f => ({ ...f, customerPhone: e.target.value }))}
+                  onChange={e => {
+                    // Only allow digits
+                    const value = e.target.value.replace(/\D/g, '');
+                    // Limit to 10 digits
+                    if (value.length <= 10) {
+                      setBookingData(f => ({ ...f, customerPhone: value }));
+                    }
+                  }}
+                  maxLength={10}
                 />
+                {bookingData.customerPhone && bookingData.customerPhone.length !== 10 && (
+                  <p className="text-sm text-red-500 mt-1">Phone number must be exactly 10 digits</p>
+                )}
               </div>
               <div>
   <label className="block font-medium mb-1">Email Address</label>
@@ -251,7 +367,7 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
         )}
 
         {/* Step: Confirm */}
-        {step === "confirm" && selectedDepartment && (
+        {step === "confirm" && (
           <div className="space-y-4">
             <div className="flex items-center space-x-2 text-sm">
               <Button variant="ghost" size="sm" onClick={() => setStep('details')} className="p-0 h-auto">
@@ -265,19 +381,21 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Business:</span>
-                  <span className="font-medium">{business?.businessName}</span>
+                  <span className="font-medium">
+                    {business?.businessName || business?.name || business?.id || business?._id || "N/A"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Service:</span>
-                  <span className="font-medium">{selectedDepartment.name}</span>
+                  <span className="font-medium">{selectedDepartment?.name || "General Service"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Date:</span>
-                  <span className="font-medium">{date ? date.toLocaleDateString() : "N/A"}</span>
+                  <span className="font-medium">{date ? date.toLocaleDateString() : new Date().toLocaleDateString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Time:</span>
-                  <span className="font-medium">{time || "N/A"}</span>
+                  <span className="font-medium">{time || new Date().toLocaleTimeString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Name:</span>
@@ -303,21 +421,38 @@ const AdvanceBookingModal: React.FC<AdvanceBookingModalProps> = ({ isOpen, onClo
 
         {/* Step: Success */}
         {step === "success" && (
-          <div className="flex flex-col items-center justify-center space-y-4 py-8">
-            <CheckCircle className="w-12 h-12 text-green-500 mb-2" />
-            <h3 className="font-semibold text-lg">Booking Confirmed!</h3>
-            <div className="text-center text-muted-foreground">
-              Your booking for <span className="font-medium">{selectedDepartment?.name}</span> on <span className="font-medium">{date ? date.toLocaleDateString() : "N/A"}</span> at <span className="font-medium">{time || "N/A"}</span> is confirmed.
+          <div className="text-center space-y-6 my-8">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
-            <div className="flex flex-col items-center gap-2 mt-2 bg-muted/50 p-4 rounded-lg">
-              <span className="text-sm text-muted-foreground">Token Number</span>
-              <span className="text-2xl font-bold text-primary">{bookingData.tokenNumber ? `#${bookingData.tokenNumber}` : '-'}</span>
-              <span className="text-sm text-muted-foreground">Estimated Wait</span>
-              <span className="font-medium">{bookingData.estimatedWaitTime ? `~${bookingData.estimatedWaitTime} min` : '-'}</span>
+            <div>
+              <h3 className="text-2xl font-bold mb-2">Booking Confirmed!</h3>
+              <p className="text-muted-foreground">Your appointment has been scheduled</p>
             </div>
-            <Button className="mt-4" onClick={handleClose}>
-              Close
-            </Button>
+            <Card className="bg-green-50 dark:bg-green-900/20 border-green-200">
+              <CardContent className="p-6 text-center">
+                <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">
+                  Token #{bookingData.tokenNumber || 1}
+                </div>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <div>Estimated wait time: {bookingData.estimatedWaitTime || selectedDepartment?.estimatedWaitTime} minutes</div>
+                  <div>Booked at: {bookingData.bookedAt ? new Date(bookingData.bookedAt).toLocaleTimeString() : new Date().toLocaleTimeString()}</div>
+                  <div>Department: {bookingData.departmentName || selectedDepartment?.name}</div>
+                </div>
+                {bookingData.qrCode && (
+                  <div className="mt-6 flex flex-col items-center">
+                    <div className="mb-2 font-semibold">Your QR Code</div>
+                    <QRCode value={bookingData.qrCode} size={128} />
+                    <div className="text-xs text-muted-foreground mt-2">Show this QR code at the counter</div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <div className="mt-6">
+              <Button onClick={handleClose} className="w-full btn-gradient">
+                Done
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>
